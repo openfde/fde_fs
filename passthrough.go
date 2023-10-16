@@ -302,7 +302,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 		//-1 means no permission
 		info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
 		logger.Info("open_dir", info)
-		return -int(syscall.EPERM), 0
+		return -int(syscall.EACCES), 0
 	}
 
 	if self.original == "/" {
