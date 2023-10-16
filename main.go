@@ -83,7 +83,7 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 	_, err = os.Stat(PathPrefix)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(PathPrefix, os.ModeDir+0777)
+			err = os.Mkdir(PathPrefix, os.ModeDir+0755)
 			if err != nil {
 				logger.Error("mount_mkdir_for_volumes", PathPrefix, err)
 				return
@@ -96,7 +96,7 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		_, err = os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
-				err = os.Mkdir(path, os.ModeDir+0750)
+				err = os.Mkdir(path, os.ModeDir+0755)
 				if err != nil {
 					logger.Error("mount_mkdir_for_volumes", mountInfo, err)
 					return
@@ -160,9 +160,6 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 			continue
 		}
 		mountPoint := fields[4]
-		if mountPoint == "/boot" {
-			continue
-		}
 		mountID := fields[0]
 		if value, exist := mountInfoByDevice[fields[9]]; exist {
 			srcMountID, err := strconv.Atoi(value.MountID)
