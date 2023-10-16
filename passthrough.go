@@ -136,12 +136,14 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 
 func (self *Ptfs) Unlink(path string) (errc int) {
 	defer trace(path)(&errc)
+	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Unlink(path))
 }
 
 func (self *Ptfs) Rmdir(path string) (errc int) {
 	defer trace(path)(&errc)
+	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Rmdir(path))
 }
@@ -163,6 +165,7 @@ func (self *Ptfs) Symlink(target string, newpath string) (errc int) {
 
 func (self *Ptfs) Readlink(path string) (errc int, target string) {
 	defer trace(path)(&errc, &target)
+	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	buff := [1024]byte{}
 	n, e := syscall.Readlink(path, buff[:])
@@ -182,12 +185,14 @@ func (self *Ptfs) Rename(oldpath string, newpath string) (errc int) {
 
 func (self *Ptfs) Chmod(path string, mode uint32) (errc int) {
 	defer trace(path, mode)(&errc)
+	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Chmod(path, mode))
 }
 
 func (self *Ptfs) Chown(path string, uid uint32, gid uint32) (errc int) {
 	defer trace(path, uid, gid)(&errc)
+	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Lchown(path, int(uid), int(gid)))
 }
@@ -241,6 +246,7 @@ func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64
 
 func (self *Ptfs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	defer trace(path, fh)(&errc, stat)
+	defer setuidgid()()
 	stgo := syscall.Stat_t{}
 	if ^uint64(0) == fh {
 		path = filepath.Join(self.root, path)
@@ -254,6 +260,7 @@ func (self *Ptfs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) 
 
 func (self *Ptfs) Truncate(path string, size int64, fh uint64) (errc int) {
 	defer trace(path, size, fh)(&errc)
+	defer setuidgid()()
 	if ^uint64(0) == fh {
 		path = filepath.Join(self.root, path)
 		errc = errno(syscall.Truncate(path, size))
@@ -265,6 +272,7 @@ func (self *Ptfs) Truncate(path string, size int64, fh uint64) (errc int) {
 
 func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	defer trace(path, buff, ofst, fh)(&n)
+	defer setuidgid()()
 	n, e := syscall.Pread(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
@@ -274,6 +282,7 @@ func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) 
 
 func (self *Ptfs) Write(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	defer trace(path, buff, ofst, fh)(&n)
+	defer setuidgid()()
 	n, e := syscall.Pwrite(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
