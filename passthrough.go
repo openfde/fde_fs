@@ -352,4 +352,3 @@ func (self *Ptfs) Releasedir(path string, fh uint64) (errc int) {
 	defer trace(path, fh)(&errc)
 	return errno(syscall.Close(int(fh)))
 }
-

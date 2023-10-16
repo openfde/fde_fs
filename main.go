@@ -1,16 +1,15 @@
 package main
 
-
 import (
 	"fde_fs/logger"
 	"flag"
-	"sync"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/winfsp/cgofuse/fuse"
@@ -61,7 +60,7 @@ func readProcess(pid uint32) {
 	ioutil.ReadFile("/proc/" + fmt.Sprint(pid) + "/environ")
 }
 
-func Mount() (mArgs []MountArgs,err error) {
+func Mount() (mArgs []MountArgs, err error) {
 	syscall.Umask(0)
 	mounts, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {
@@ -87,7 +86,7 @@ func Mount() (mArgs []MountArgs,err error) {
 			err = os.Mkdir(PathPrefix, os.ModeDir+0777)
 			if err != nil {
 				logger.Error("mount_mkdir_for_volumes", PathPrefix, err)
-				return 
+				return
 			}
 		}
 	}
@@ -100,29 +99,30 @@ func Mount() (mArgs []MountArgs,err error) {
 				err = os.Mkdir(path, os.ModeDir+0750)
 				if err != nil {
 					logger.Error("mount_mkdir_for_volumes", mountInfo, err)
-					return 
+					return
 				}
 			} else {
 				logger.Error("mount_stat_volume", path, err)
 				err = syscall.Unmount(path, 0)
 				if err != nil {
 					logger.Error("umount_volumes", path, err)
-					return 
+					return
 				}
 			}
 		}
 
-		mArgs = append(mArgs,MountArgs{
-			Args : []string{"-o", "allow_other", PathPrefix + mountInfo.Volume},
+		mArgs = append(mArgs, MountArgs{
+			Args: []string{"-o", "allow_other", PathPrefix + mountInfo.Volume},
 			PassFS: Ptfs{
 				root: mountInfo.MountPoint,
 			},
 		})
 	}
-	return 
+	return
 }
+
 type MountArgs struct {
-	Args []string
+	Args   []string
 	PassFS Ptfs
 }
 
@@ -224,37 +224,47 @@ func UmountAllVolumes() error {
 	return nil
 }
 
+var _version_ = "v0.1"
+var _tag_ = "v0.1"
+var _date_ = "20231001"
+
 func main() {
-	var umount, mount, help bool
+	var umount, mount, help, version bool
 	flag.BoolVar(&mount, "m", false, "-m")
+	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
 	flag.BoolVar(&help, "h", false, "-h")
 	flag.Parse()
 	if help {
 		fmt.Println("fde_fs:")
 		fmt.Println("\t-h: help")
+		fmt.Println("\t-v: print version and tag")
 		fmt.Println("\t-u: umount all volumes")
 		fmt.Println("\t-m: mount all volumes")
 		return
 	}
+	if version {
+		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
+		return
+	}
 
 	if umount {
-		logger.Info("umount_all_volumes","umount")
+		logger.Info("umount_all_volumes", "umount")
 		err := UmountAllVolumes()
 		if err != nil {
-			logger.Error("umount_failed",nil,err)
+			logger.Error("umount_failed", nil, err)
 		}
 		return
 	}
-	mountArgs,err := Mount()
+	mountArgs, err := Mount()
 	if err != nil {
 		os.Exit(1)
 	}
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})
-	for _,value := range mountArgs{
-		go func(args []string,  fs Ptfs, c chan struct{}) {
+	for _, value := range mountArgs {
+		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			var host *fuse.FileSystemHost
 			host = fuse.NewFileSystemHost(&fs)
@@ -263,13 +273,12 @@ func main() {
 				logger.Error("mount_fuse_error", tr, nil)
 				c <- struct{}{}
 			}
-		}(value.Args, value.PassFS,ch)
+		}(value.Args, value.PassFS, ch)
 	}
 	go func() {
 		wg.Wait()
 		ch <- struct{}{}
 	}()
 	<-ch
-	logger.Info("mount_exit","exit")
+	logger.Info("mount_exit", "exit")
 }
-

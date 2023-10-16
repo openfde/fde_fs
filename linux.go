@@ -46,8 +46,8 @@ func copyFusestatFromGostat(dst *fuse.Stat_t, src *syscall.Stat_t) {
 	dst.Rdev = uint64(src.Rdev)
 	dst.Size = int64(src.Size)
 	dst.Atim.Sec, dst.Atim.Nsec = src.Atim.Sec, src.Atim.Nsec
-        dst.Mtim.Sec, dst.Mtim.Nsec = src.Mtim.Sec, src.Mtim.Nsec
-        dst.Ctim.Sec, dst.Ctim.Nsec = src.Ctim.Sec, src.Ctim.Nsec
+	dst.Mtim.Sec, dst.Mtim.Nsec = src.Mtim.Sec, src.Mtim.Nsec
+	dst.Ctim.Sec, dst.Ctim.Nsec = src.Ctim.Sec, src.Ctim.Nsec
 	dst.Blksize = int64(src.Blksize)
 	dst.Blocks = int64(src.Blocks)
 }
@@ -55,4 +55,3 @@ func copyFusestatFromGostat(dst *fuse.Stat_t, src *syscall.Stat_t) {
 func syscall_Statfs(path string, stat *syscall.Statfs_t) error {
 	return syscall.Statfs(path, stat)
 }
-
