@@ -60,7 +60,7 @@ func readProcess(pid uint32) {
 	ioutil.ReadFile("/proc/" + fmt.Sprint(pid) + "/environ")
 }
 
-func Mount() (mArgs []MountArgs, err error) {
+func ConstructMountArgs() (mArgs []MountArgs, err error) {
 	syscall.Umask(0)
 	mounts, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {
@@ -235,28 +235,37 @@ func main() {
 	flag.BoolVar(&umount, "u", false, "-u")
 	flag.BoolVar(&help, "h", false, "-h")
 	flag.Parse()
-	if help {
-		fmt.Println("fde_fs:")
-		fmt.Println("\t-h: help")
-		fmt.Println("\t-v: print version and tag")
-		fmt.Println("\t-u: umount all volumes")
-		fmt.Println("\t-m: mount all volumes")
-		return
-	}
-	if version {
-		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
-		return
+
+	switch {
+	case help:
+		{
+			fmt.Println("fde_fs:")
+			fmt.Println("\t-h: help")
+			fmt.Println("\t-v: print version and tag")
+			fmt.Println("\t-u: umount all volumes")
+			fmt.Println("\t-m: mount all volumes")
+			return
+		}
+	case version:
+		{
+			fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
+			return
+		}
+	case umount:
+		{
+			logger.Info("umount_all_volumes", "umount")
+			err := UmountAllVolumes()
+			if err != nil {
+				logger.Error("umount_failed", nil, err)
+			}
+			return
+		}
 	}
 
-	if umount {
-		logger.Info("umount_all_volumes", "umount")
-		err := UmountAllVolumes()
-		if err != nil {
-			logger.Error("umount_failed", nil, err)
-		}
+	if !mount {
 		return
 	}
-	mountArgs, err := Mount()
+	mountArgs, err := ConstructMountArgs()
 	if err != nil {
 		os.Exit(1)
 	}
@@ -271,14 +280,14 @@ func main() {
 			tr := host.Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
-				c <- struct{}{}
+				c <- struct{}{} //任意goroutine 出错就解锁主进程退出
 			}
 		}(value.Args, value.PassFS, ch)
 	}
 	go func() {
-		wg.Wait()
-		ch <- struct{}{}
+		wg.Wait()        //等待所有子进程退出
+		ch <- struct{}{} //解锁主goroutine
 	}()
-	<-ch
+	<-ch //阻塞在此
 	logger.Info("mount_exit", "exit")
 }
