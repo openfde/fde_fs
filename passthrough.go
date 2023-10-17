@@ -252,7 +252,7 @@ func (self *Ptfs) isHostNS() bool {
 	if err != nil {
 		return false
 	}
-	if self.ns == "" {
+	if self.ns == 0 {
 		self.recordNameSpace()
 	}
 	return ns == self.ns
