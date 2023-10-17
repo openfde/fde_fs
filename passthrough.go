@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fde_fs/logger"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -29,6 +32,7 @@ type Ptfs struct {
 	fuse.FileSystemBase
 	root     string
 	original string
+	ns       string
 }
 
 func (self *Ptfs) Init() {
@@ -163,6 +167,20 @@ func (self *Ptfs) Symlink(target string, newpath string) (errc int) {
 	return errno(syscall.Symlink(target, newpath))
 }
 
+func (self *Ptfs) readNS(pid string) (nsid string, err error) {
+	file := "/proc/" + pid + "/ns/pid"
+	fd, err := os.Open(file)
+	if err != nil {
+		logger.Error("read_name_space_fs", nil, err)
+		return
+	}
+	defer fd.Close()
+	var stat syscall.Stat_t
+	syscall.Fstat(int(fd.Fd()), &stat)
+	nsid := stat.Ino
+	return
+}
+
 func (self *Ptfs) Readlink(path string) (errc int, target string) {
 	defer trace(path)(&errc, &target)
 	defer setuidgid()()
@@ -219,7 +237,7 @@ func (self *Ptfs) isHomeFDE() bool {
 
 func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint64) {
 	defer trace(path, flags, mode)(&errc, &fh)
-	defer setuidgid()()
+	// defer setuidgid()()
 	uid, _, _ := fuse.Getcontext()
 	path = filepath.Join(self.root, path)
 	if self.isHomeFDE() {
@@ -228,9 +246,80 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 	return self.open(path, flags, mode)
 }
 
+func (self *Ptfs) isHostNS() bool {
+	_, _, pid := fuse.Getcontext()
+	ns, err := self.readNS(strconv.Itoa(pid))
+	if err != nil {
+		return false
+	}
+	if self.ns == "" {
+		self.recordNameSpace()
+	}
+	return ns == self.ns
+}
+
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
+	if self.isHostNS() {
+		var st syscall.Stat_t
+		syscall.Stat(path, &st)
+		var dstSt fuse.Stat_t
+		copyFusestatFromGostat(&dstSt, &st)
+		uid, gid, _ := fuse.Getcontext()
+		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+			//-1 means no permission
+			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+			logger.Info("open_dir", info)
+			return -int(syscall.EACCES), 0
+		}
+	} else {
+		//is fde
+		//todo based as only one instance of fde, should consider multiple instances of fde
+		//read the permission allowd list to decide whether the uid have permission to do
+
+	}
 	return self.open(path, flags, 0)
+}
+
+func (self *Ptfs) recordNameSpace() {
+	psCmd := exec.Command("ps", "-ef")
+	grepCmd := exec.Command("grep", "fde_fs")
+	xgrepCmd := exec.Command("grep", "-v", "grep")
+	// 将 ps 命令的输出传递给 grep 命令进行过滤
+	var output bytes.Buffer
+	grepCmd.Stdin, _ = psCmd.StdoutPipe()
+	xgrepCmd.Stdin, _ = grepCmd.StdoutPipe()
+	xgrepCmd.Stdout = &output
+	err := psCmd.Start()
+	if err != nil {
+		return
+	}
+	err = grepCmd.Start()
+	if err != nil {
+		return
+	}
+	err = xgrepCmd.Start()
+	if err != nil {
+		return
+	}
+	err = psCmd.Wait()
+	if err != nil {
+		return
+	}
+	grepCmd.Wait()
+	xgrepCmd.Wait()
+	// 解析 grep 命令的输出
+
+	fields := strings.Fields(output.String())
+	if len(fields) < 2 {
+		return
+	}
+	self.ns, err = self.readNS(fields[1])
+	if err != nil {
+		logger.Error("record_ns", nil, err)
+	}
+	return
+
 }
 
 func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64) {
@@ -302,16 +391,24 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
-	var st syscall.Stat_t
-	syscall.Stat(path, &st)
-	var dstSt fuse.Stat_t
-	copyFusestatFromGostat(&dstSt, &st)
-	uid, gid, _ := fuse.Getcontext()
-	if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-		//-1 means no permission
-		info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-		logger.Info("open_dir", info)
-		return -int(syscall.EACCES), 0
+
+	if self.isHostNS(ns) {
+		var st syscall.Stat_t
+		syscall.Stat(path, &st)
+		var dstSt fuse.Stat_t
+		copyFusestatFromGostat(&dstSt, &st)
+		uid, gid, _ := fuse.Getcontext()
+		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+			//-1 means no permission
+			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+			logger.Info("open_dir", info)
+			return -int(syscall.EACCES), 0
+		}
+	} else {
+		//is fde
+		//todo based as only one instance of fde, should consider multiple instances of fde
+		//read the permission allowd list to decide whether the uid have permission to do
+
 	}
 
 	if self.original == "/" {
