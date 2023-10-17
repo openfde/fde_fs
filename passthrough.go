@@ -32,7 +32,7 @@ type Ptfs struct {
 	fuse.FileSystemBase
 	root     string
 	original string
-	ns       string
+	ns       uint64
 }
 
 func (self *Ptfs) Init() {
@@ -167,7 +167,7 @@ func (self *Ptfs) Symlink(target string, newpath string) (errc int) {
 	return errno(syscall.Symlink(target, newpath))
 }
 
-func (self *Ptfs) readNS(pid string) (nsid string, err error) {
+func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
 	file := "/proc/" + pid + "/ns/pid"
 	fd, err := os.Open(file)
 	if err != nil {
@@ -177,7 +177,7 @@ func (self *Ptfs) readNS(pid string) (nsid string, err error) {
 	defer fd.Close()
 	var stat syscall.Stat_t
 	syscall.Fstat(int(fd.Fd()), &stat)
-	nsid := stat.Ino
+	nsid = stat.Ino
 	return
 }
 
@@ -391,8 +391,7 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
-
-	if self.isHostNS(ns) {
+	if self.isHostNS() {
 		var st syscall.Stat_t
 		syscall.Stat(path, &st)
 		var dstSt fuse.Stat_t
