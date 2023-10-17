@@ -225,10 +225,12 @@ func (self *Ptfs) Utimens(path string, tmsp1 []fuse.Timespec) (errc int) {
 }
 
 func (self *Ptfs) isHomeFDE() bool {
+	fmt.Println("in is home fde")
 	list := strings.Split(self.original, "/")
 	if len(list) < 4 {
 		return false
 	}
+	fmt.Println("in is home fde args", list[1], list[3])
 	if list[1] == "home" && list[3] == "fde" {
 		return true
 	}
@@ -391,6 +393,7 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
+	path = filepath.Join(self.original, path)
 	if self.isHostNS() {
 		var st syscall.Stat_t
 		syscall.Stat(path, &st)

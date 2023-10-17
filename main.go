@@ -263,29 +263,31 @@ func main() {
 		return
 	}
 	//mount /.fde/username to /HOME/fde
-	dataorigin, dataPoint, err := MKDataDir()
+	dataOrigin, dataPoint, err := MKDataDir()
 	if err != nil {
 		os.Exit(1)
 	}
+	fmt.Println(dataOrigin,dataPoint,"data")
 	mountArgs, err := ConstructMountArgs()
 	if err != nil {
 		os.Exit(1)
 	}
 	mountArgs = append(mountArgs, MountArgs{
-		Args: []string{"-o", "allow_other", dataorigin},
+		Args: []string{"-o", "allow_other", dataPoint},
 		PassFS: Ptfs{
-			root: dataPoint,
+			root: dataOrigin,
 		},
 	})
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})
-	for _, value := range mountArgs {
+	hosts := make([]*fuse.FileSystemHost, len(mountArgs))
+	for index, value := range mountArgs {
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
-			var host *fuse.FileSystemHost
-			host = fuse.NewFileSystemHost(&fs)
-			tr := host.Mount("", args)
+			hosts[index] = fuse.NewFileSystemHost(&fs)
+			fmt.Println("args",args,fs.root)
+			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
 				c <- struct{}{}
