@@ -262,10 +262,21 @@ func main() {
 	if !mount {
 		return
 	}
+	//mount /.fde/username to /HOME/fde
+	dataorigin, dataPoint, err := MKDataDir()
+	if err != nil {
+		os.Exit(1)
+	}
 	mountArgs, err := ConstructMountArgs()
 	if err != nil {
 		os.Exit(1)
 	}
+	mountArgs = append(mountArgs, MountArgs{
+		Args: []string{"-o", "allow_other", dataorigin},
+		PassFS: Ptfs{
+			root: dataPoint,
+		},
+	})
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})
@@ -277,13 +288,13 @@ func main() {
 			tr := host.Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
-				c <- struct{}{} //任意goroutine 出错就解锁主进程退出
+				c <- struct{}{}
 			}
 		}(value.Args, value.PassFS, ch)
 	}
 	go func() {
-		wg.Wait()        //等待所有子进程退出
-		ch <- struct{}{} //解锁主goroutine
+		wg.Wait()        //wiating for all goroutine
+		ch <- struct{}{} //unlock the main goroutine
 	}()
 	<-ch //阻塞在此
 	logger.Info("mount_exit", "exit")
