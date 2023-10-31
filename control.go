@@ -6,23 +6,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
-	"strconv"
 
 	"github.com/winfsp/cgofuse/fuse"
 )
 
 func (self *Ptfs) isHostNS() bool {
-       _, _, pid := fuse.Getcontext()
-       ns, err := self.readNS(strconv.Itoa(pid))
-       if err != nil {
-               return false
-       }
-       if self.ns == 0 {
-               self.recordNameSpace()
-       }
-       return ns == self.ns
+	_, _, pid := fuse.Getcontext()
+	ns, err := self.readNS(strconv.Itoa(pid))
+	if err != nil {
+		return false
+	}
+	if self.ns == 0 {
+		self.recordNameSpace()
+	}
+	return ns == self.ns
 }
 
 func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
