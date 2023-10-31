@@ -37,11 +37,12 @@ type Ptfs struct {
 
 func (self *Ptfs) Init() {
 	defer trace()()
-	e := syscall.Chdir(self.root)
+//	e := syscall.Chdir(self.root)
+fmt.Println(self.root,"init root")
 	self.original = self.root
-	if nil == e {
-		self.root = "./"
-	}
+//	if nil == e {
+//		self.root = "./"
+//	}
 }
 
 // Destroy is called when the file system is destroyed.
@@ -261,6 +262,8 @@ func (self *Ptfs) isHostNS() bool {
 }
 
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
+	path = filepath.Join(self.root, path)
+	fmt.Println("open "+ path)
 	defer trace(path, flags)(&errc, &fh)
 	if self.isHostNS() {
 		var st syscall.Stat_t
@@ -325,7 +328,6 @@ func (self *Ptfs) recordNameSpace() {
 }
 
 func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64) {
-	path = filepath.Join(self.root, path)
 	//todo controll the permission by ourself policy
 	//identity where the request from , android or linux
 	f, e := syscall.Open(path, flags, mode)
@@ -394,6 +396,7 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
 	path = filepath.Join(self.original, path)
+	/*fmt.Println("opendir ", path,self.original)
 	if self.isHostNS() {
 		var st syscall.Stat_t
 		syscall.Stat(path, &st)
@@ -413,6 +416,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 
 	}
 
+	*/
 	if self.original == "/" {
 		list := strings.Split(path, "/")
 		if len(list) >= 2 {
@@ -432,7 +436,8 @@ func (self *Ptfs) Readdir(path string, fill func(name string, stat *fuse.Stat_t,
 	ofst int64,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
-	path = filepath.Join(self.root, path)
+	path = filepath.Join(self.original, path)
+	fmt.Println(path,"read dir")
 	file, e := os.Open(path)
 	if nil != e {
 		return errno(e)

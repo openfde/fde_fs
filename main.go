@@ -2,6 +2,7 @@ package main
 
 import (
 	"fde_fs/logger"
+	"time"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -268,21 +269,24 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(dataOrigin,dataPoint,"data")
-	mountArgs, err := ConstructMountArgs()
-	if err != nil {
-		os.Exit(1)
-	}
+	//mountArgs, err := ConstructMountArgs()
+	//if err != nil {
+		//os.Exit(1)
+//	}
+	var mountArgs []MountArgs
 	mountArgs = append(mountArgs, MountArgs{
-		Args: []string{"-o", "allow_other", dataPoint},
+	Args: []string{"-o", "allow_other",  dataPoint},
 		PassFS: Ptfs{
 			root: dataOrigin,
 		},
 	})
+	fmt.Println("hello")
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})
 	hosts := make([]*fuse.FileSystemHost, len(mountArgs))
 	for index, value := range mountArgs {
+		fmt.Println("mount args",value)
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
@@ -293,6 +297,7 @@ func main() {
 				c <- struct{}{}
 			}
 		}(value.Args, value.PassFS, ch)
+		time.Sleep(time.Second)
 	}
 	go func() {
 		wg.Wait()        //wiating for all goroutine
