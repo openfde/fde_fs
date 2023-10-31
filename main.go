@@ -267,7 +267,7 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
-	fmt.Println(dataOrigin,dataPoint,"data")
+	fmt.Println(dataOrigin, dataPoint, "data")
 	mountArgs, err := ConstructMountArgs()
 	if err != nil {
 		os.Exit(1)
@@ -286,7 +286,7 @@ func main() {
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
-			fmt.Println("args",args,fs.root)
+			fmt.Println("args", args, fs.root)
 			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
