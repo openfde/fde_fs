@@ -35,6 +35,11 @@ func MKDataDir() (dataorigin, data string, err error) {
 			}
 		}
 	}
+	err = os.Chown(dataorigin, os.Getuid(), os.Getgid())
+	if err != nil {
+		logger.Error("chown_for_home", dataorigin, err)
+		return
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
