@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fde_fs/logger"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -37,12 +35,17 @@ type Ptfs struct {
 
 func (self *Ptfs) Init() {
 	defer trace()()
+<<<<<<< HEAD
 //	e := syscall.Chdir(self.root)
 fmt.Println(self.root,"init root")
 	self.original = self.root
 //	if nil == e {
 //		self.root = "./"
 //	}
+=======
+	// e := syscall.Chdir(self.root)
+	self.original = self.root
+>>>>>>> master
 }
 
 // Destroy is called when the file system is destroyed.
@@ -57,65 +60,6 @@ func (self *Ptfs) Access(path string, mask uint32) int {
 	return errno(syscall.Access(path, mask))
 }
 
-/*
-// Flush flushes cached file data.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Flush(path string, fh uint64) int {
-		syscall.Flush
-		return -ENOSYS
-	}
-
-// Lock performs a file locking operation.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Lock(path string, cmd int, lock *Lock_t, fh uint64) int {
-		return -ENOSYS
-	}
-
-// Fsyncdir synchronizes directory contents.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Fsyncdir(path string, datasync bool, fh uint64) int {
-		syscall.Fsyncd
-		return -ENOSYS
-	}
-
-// Setxattr sets extended attributes.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Setxattr(path string, name string, value []byte, flags int) int {
-		return -ENOSYS
-	}
-
-// Getxattr gets extended attributes.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Getxattr(path string, name string) (int, []byte) {
-		path = filepath.Join(self.root, path)
-		var buffer []byte
-		sz, err := syscall.Getxattr(path, name, buffer)
-		return errno(err), buffer
-	}
-
-// Removexattr removes extended attributes.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Removexattr(path string, attr string) int {
-		path = filepath.Join(self.root, path)
-		return errno(syscall.Removexattr(path, attr))
-	}
-
-// Listxattr lists extended attributes.
-// The FileSystemBase implementation returns -ENOSYS.
-
-	func (self *Ptfs) Listxattr(path string, fill func(name string) bool) int {
-		path = filepath.Join(self.root, path)
-		var buffer []byte
-		syscall.Listxattr(path,)
-		return errno(syscall.Listxattr(path, attr))
-	}
-*/
 func (self *Ptfs) Statfs(path string, stat *fuse.Statfs_t) (errc int) {
 	defer trace(path)(&errc, stat)
 	path = filepath.Join(self.root, path)
@@ -168,20 +112,6 @@ func (self *Ptfs) Symlink(target string, newpath string) (errc int) {
 	return errno(syscall.Symlink(target, newpath))
 }
 
-func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
-	file := "/proc/" + pid + "/ns/pid"
-	fd, err := os.Open(file)
-	if err != nil {
-		logger.Error("read_name_space_fs", nil, err)
-		return
-	}
-	defer fd.Close()
-	var stat syscall.Stat_t
-	syscall.Fstat(int(fd.Fd()), &stat)
-	nsid = stat.Ino
-	return
-}
-
 func (self *Ptfs) Readlink(path string) (errc int, target string) {
 	defer trace(path)(&errc, &target)
 	defer setuidgid()()
@@ -223,19 +153,6 @@ func (self *Ptfs) Utimens(path string, tmsp1 []fuse.Timespec) (errc int) {
 	tmsp[0].Sec, tmsp[0].Nsec = tmsp1[0].Sec, tmsp1[0].Nsec
 	tmsp[1].Sec, tmsp[1].Nsec = tmsp1[1].Sec, tmsp1[1].Nsec
 	return errno(syscall.UtimesNano(path, tmsp[:]))
-}
-
-func (self *Ptfs) isHomeFDE() bool {
-	fmt.Println("in is home fde")
-	list := strings.Split(self.original, "/")
-	if len(list) < 4 {
-		return false
-	}
-	fmt.Println("in is home fde args", list[1], list[3])
-	if list[1] == "home" && list[3] == "fde" {
-		return true
-	}
-	return false
 }
 
 func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint64) {
@@ -284,47 +201,6 @@ func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 
 	}
 	return self.open(path, flags, 0)
-}
-
-func (self *Ptfs) recordNameSpace() {
-	psCmd := exec.Command("ps", "-ef")
-	grepCmd := exec.Command("grep", "fde_fs")
-	xgrepCmd := exec.Command("grep", "-v", "grep")
-	// 将 ps 命令的输出传递给 grep 命令进行过滤
-	var output bytes.Buffer
-	grepCmd.Stdin, _ = psCmd.StdoutPipe()
-	xgrepCmd.Stdin, _ = grepCmd.StdoutPipe()
-	xgrepCmd.Stdout = &output
-	err := psCmd.Start()
-	if err != nil {
-		return
-	}
-	err = grepCmd.Start()
-	if err != nil {
-		return
-	}
-	err = xgrepCmd.Start()
-	if err != nil {
-		return
-	}
-	err = psCmd.Wait()
-	if err != nil {
-		return
-	}
-	grepCmd.Wait()
-	xgrepCmd.Wait()
-	// 解析 grep 命令的输出
-
-	fields := strings.Fields(output.String())
-	if len(fields) < 2 {
-		return
-	}
-	self.ns, err = self.readNS(fields[1])
-	if err != nil {
-		logger.Error("record_ns", nil, err)
-	}
-	return
-
 }
 
 func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64) {
@@ -437,7 +313,10 @@ func (self *Ptfs) Readdir(path string, fill func(name string, stat *fuse.Stat_t,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
 	path = filepath.Join(self.original, path)
+<<<<<<< HEAD
 	fmt.Println(path,"read dir")
+=======
+>>>>>>> master
 	file, e := os.Open(path)
 	if nil != e {
 		return errno(e)
