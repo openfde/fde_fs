@@ -1,3 +1,17 @@
+// +build darwin freebsd netbsd openbsd linux
+
+/*
+ * passthrough.go
+ *
+ * Copyright 2017-2022 Bill Zissimopoulos
+ */
+/*
+ * This file is part of Cgofuse.
+ *
+ * It is licensed under the MIT license. The full license text can be found
+ * in the License.txt file at the root of this project.
+ */
+
 package main
 
 import (
@@ -5,13 +19,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/winfsp/cgofuse/examples/shared"
 	"github.com/winfsp/cgofuse/fuse"
 )
+
+func trace(vals ...interface{}) func(vals ...interface{}) {
+	uid, gid, _ := fuse.Getcontext()
+	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
+}
 
 func errno(err error) int {
 	if nil != err {
@@ -21,31 +39,26 @@ func errno(err error) int {
 	}
 }
 
-func trace(vals ...interface{}) func(vals ...interface{}) {
-	uid, gid, _ := fuse.Getcontext()
-	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
-}
+var (
+	_host *fuse.FileSystemHost
+)
 
 type Ptfs struct {
 	fuse.FileSystemBase
-	root     string
 	original string
-	ns       uint64
+       ns       uint64
+	root string
 }
 
 func (self *Ptfs) Init() {
 	defer trace()()
-<<<<<<< HEAD
 //	e := syscall.Chdir(self.root)
-fmt.Println(self.root,"init root")
+	fmt.Println(self.root,"init root")
 	self.original = self.root
+	// e := syscall.Chdir(self.root)
 //	if nil == e {
 //		self.root = "./"
 //	}
-=======
-	// e := syscall.Chdir(self.root)
-	self.original = self.root
->>>>>>> master
 }
 
 // Destroy is called when the file system is destroyed.
@@ -85,14 +98,12 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 
 func (self *Ptfs) Unlink(path string) (errc int) {
 	defer trace(path)(&errc)
-	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Unlink(path))
 }
 
 func (self *Ptfs) Rmdir(path string) (errc int) {
 	defer trace(path)(&errc)
-	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Rmdir(path))
 }
@@ -112,9 +123,9 @@ func (self *Ptfs) Symlink(target string, newpath string) (errc int) {
 	return errno(syscall.Symlink(target, newpath))
 }
 
+
 func (self *Ptfs) Readlink(path string) (errc int, target string) {
 	defer trace(path)(&errc, &target)
-	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	buff := [1024]byte{}
 	n, e := syscall.Readlink(path, buff[:])
@@ -134,14 +145,12 @@ func (self *Ptfs) Rename(oldpath string, newpath string) (errc int) {
 
 func (self *Ptfs) Chmod(path string, mode uint32) (errc int) {
 	defer trace(path, mode)(&errc)
-	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Chmod(path, mode))
 }
 
 func (self *Ptfs) Chown(path string, uid uint32, gid uint32) (errc int) {
 	defer trace(path, uid, gid)(&errc)
-	defer setuidgid()()
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Lchown(path, int(uid), int(gid)))
 }
@@ -157,55 +166,39 @@ func (self *Ptfs) Utimens(path string, tmsp1 []fuse.Timespec) (errc int) {
 
 func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint64) {
 	defer trace(path, flags, mode)(&errc, &fh)
-	// defer setuidgid()()
-	uid, _, _ := fuse.Getcontext()
-	path = filepath.Join(self.root, path)
-	if self.isHomeFDE() {
-		syscall.Chown(path, int(uid), 10038)
-	}
+	defer setuidgid()()
 	return self.open(path, flags, mode)
 }
 
-func (self *Ptfs) isHostNS() bool {
-	_, _, pid := fuse.Getcontext()
-	ns, err := self.readNS(strconv.Itoa(pid))
-	if err != nil {
-		return false
-	}
-	if self.ns == 0 {
-		self.recordNameSpace()
-	}
-	return ns == self.ns
-}
 
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	path = filepath.Join(self.root, path)
-	fmt.Println("open "+ path)
+       fmt.Println("open "+ path)
 	defer trace(path, flags)(&errc, &fh)
 	if self.isHostNS() {
-		var st syscall.Stat_t
-		syscall.Stat(path, &st)
-		var dstSt fuse.Stat_t
-		copyFusestatFromGostat(&dstSt, &st)
-		uid, gid, _ := fuse.Getcontext()
-		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-			//-1 means no permission
-			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-			logger.Info("open_dir", info)
-			return -int(syscall.EACCES), 0
-		}
-	} else {
-		//is fde
-		//todo based as only one instance of fde, should consider multiple instances of fde
-		//read the permission allowd list to decide whether the uid have permission to do
+               var st syscall.Stat_t
+               syscall.Stat(path, &st)
+               var dstSt fuse.Stat_t
+               copyFusestatFromGostat(&dstSt, &st)
+               uid, gid, _ := fuse.Getcontext()
+               if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+                       //-1 means no permission
+                       info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+                       logger.Info("open_dir", info)
+                       return -int(syscall.EACCES), 0
+               }
+       } else {
+               //is fde
+               //todo based as only one instance of fde, should consider multiple instances of fde
+               //read the permission allowd list to decide whether the uid have permission to do
 
-	}
+       }
+
 	return self.open(path, flags, 0)
 }
 
 func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64) {
-	//todo controll the permission by ourself policy
-	//identity where the request from , android or linux
+	//path = filepath.Join(self.root, path)
 	f, e := syscall.Open(path, flags, mode)
 	if nil != e {
 		return errno(e), ^uint64(0)
@@ -215,7 +208,6 @@ func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64
 
 func (self *Ptfs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	defer trace(path, fh)(&errc, stat)
-	defer setuidgid()()
 	stgo := syscall.Stat_t{}
 	if ^uint64(0) == fh {
 		path = filepath.Join(self.root, path)
@@ -229,7 +221,6 @@ func (self *Ptfs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) 
 
 func (self *Ptfs) Truncate(path string, size int64, fh uint64) (errc int) {
 	defer trace(path, size, fh)(&errc)
-	defer setuidgid()()
 	if ^uint64(0) == fh {
 		path = filepath.Join(self.root, path)
 		errc = errno(syscall.Truncate(path, size))
@@ -241,7 +232,6 @@ func (self *Ptfs) Truncate(path string, size int64, fh uint64) (errc int) {
 
 func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	defer trace(path, buff, ofst, fh)(&n)
-	defer setuidgid()()
 	n, e := syscall.Pread(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
@@ -251,7 +241,6 @@ func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) 
 
 func (self *Ptfs) Write(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	defer trace(path, buff, ofst, fh)(&n)
-	defer setuidgid()()
 	n, e := syscall.Pwrite(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
@@ -272,35 +261,36 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
 	path = filepath.Join(self.original, path)
-	/*fmt.Println("opendir ", path,self.original)
-	if self.isHostNS() {
-		var st syscall.Stat_t
-		syscall.Stat(path, &st)
-		var dstSt fuse.Stat_t
-		copyFusestatFromGostat(&dstSt, &st)
-		uid, gid, _ := fuse.Getcontext()
-		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-			//-1 means no permission
-			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-			logger.Info("open_dir", info)
-			return -int(syscall.EACCES), 0
-		}
-	} else {
-		//is fde
-		//todo based as only one instance of fde, should consider multiple instances of fde
-		//read the permission allowd list to decide whether the uid have permission to do
+       /*fmt.Println("opendir ", path,self.original)
+       if self.isHostNS() {
+               var st syscall.Stat_t
+               syscall.Stat(path, &st)
+               var dstSt fuse.Stat_t
+               copyFusestatFromGostat(&dstSt, &st)
+               uid, gid, _ := fuse.Getcontext()
+               if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+                       //-1 means no permission
+                       info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+                       logger.Info("open_dir", info)
+                       return -int(syscall.EACCES), 0
+               }
+       } else {
+               //is fde
+               //todo based as only one instance of fde, should consider multiple instances of fde
+               //read the permission allowd list to decide whether the uid have permission to do
 
-	}
+       }
 
-	*/
-	if self.original == "/" {
-		list := strings.Split(path, "/")
-		if len(list) >= 2 {
-			if list[1] == FSPrefix {
-				return int(syscall.ENOENT), 1
-			}
-		}
-	}
+       */
+       if self.original == "/" {
+               list := strings.Split(path, "/")
+               if len(list) >= 2 {
+                       if list[1] == FSPrefix {
+                               return int(syscall.ENOENT), 1
+                       }
+               }
+       }
+	path = filepath.Join(self.root, path)
 	f, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if nil != e {
 		return errno(e), ^uint64(0)
@@ -308,15 +298,13 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	return 0, uint64(f)
 }
 
-func (self *Ptfs) Readdir(path string, fill func(name string, stat *fuse.Stat_t, ofst int64) bool,
+func (self *Ptfs) Readdir(path string,
+	fill func(name string, stat *fuse.Stat_t, ofst int64) bool,
 	ofst int64,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
 	path = filepath.Join(self.original, path)
-<<<<<<< HEAD
 	fmt.Println(path,"read dir")
-=======
->>>>>>> master
 	file, e := os.Open(path)
 	if nil != e {
 		return errno(e)
@@ -328,11 +316,6 @@ func (self *Ptfs) Readdir(path string, fill func(name string, stat *fuse.Stat_t,
 	}
 	nams = append([]string{".", ".."}, nams...)
 	for _, name := range nams {
-		if self.original == "/" {
-			if name == FSPrefix {
-				continue
-			}
-		}
 		if !fill(name, nil, 0) {
 			break
 		}
@@ -344,3 +327,4 @@ func (self *Ptfs) Releasedir(path string, fh uint64) (errc int) {
 	defer trace(path, fh)(&errc)
 	return errno(syscall.Close(int(fh)))
 }
+
