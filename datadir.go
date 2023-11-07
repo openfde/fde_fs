@@ -12,7 +12,7 @@ func MKDataDir() (dataorigin, data string, err error) {
 	_, err = os.Stat(dataDIRPREFIX)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(dataDIRPREFIX, os.ModeDir+0700)
+			err = os.Mkdir(dataDIRPREFIX, os.ModeDir+0777)
 			if err != nil {
 				logger.Error("mount_mkdir_for_datadir", dataDIRPREFIX, err)
 				return

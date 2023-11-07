@@ -260,7 +260,6 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
 	path = filepath.Join(self.original, path)
-	fmt.Println("opendir ", path, self.original)
 	if self.isHostNS() {
 		var st syscall.Stat_t
 		syscall.Stat(path, &st)
@@ -288,7 +287,6 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 			}
 		}
 	}
-	path = filepath.Join(self.root, path)
 	f, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if nil != e {
 		return errno(e), ^uint64(0)

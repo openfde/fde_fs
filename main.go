@@ -268,14 +268,13 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
-	fmt.Println(dataOrigin,dataPoint,"data")
-	//mountArgs, err := ConstructMountArgs()
-	//if err != nil {
-		//os.Exit(1)
-//	}
-	var mountArgs []MountArgs
+	mountArgs, err := ConstructMountArgs()
+	if err != nil {
+		os.Exit(1)
+	}
+	//var mountArgs []MountArgs
 	mountArgs = append(mountArgs, MountArgs{
-	Args: []string{"-o", "allow_other", "-o","debug", dataPoint},
+	Args: []string{"-o", "allow_other", "-o","debug",  dataPoint},
 		PassFS: Ptfs{
 			root: dataOrigin,
 		},
