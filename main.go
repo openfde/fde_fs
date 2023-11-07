@@ -279,7 +279,6 @@ func main() {
 			root: dataOrigin,
 		},
 	})
-	fmt.Println("hello")
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})

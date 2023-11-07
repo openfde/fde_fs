@@ -56,6 +56,13 @@ func MKDataDir() (dataorigin, data string, err error) {
 				return
 			}
 		}
+		//if the dir has not umounted
+		err = syscall.Unmount(data, 0)
+		if err != nil {
+			logger.Error("umount_volumes",data, err)
+			return
+		}
+
 	}
 	return
 }
