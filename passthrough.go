@@ -197,7 +197,7 @@ func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 }
 
 func (self *Ptfs) open(path string, flags int, mode uint32) (errc int, fh uint64) {
-	//path = filepath.Join(self.root, path)
+	path = filepath.Join(self.root, path)
 	f, e := syscall.Open(path, flags, mode)
 	if nil != e {
 		return errno(e), ^uint64(0)

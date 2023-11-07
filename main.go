@@ -285,11 +285,9 @@ func main() {
 	ch := make(chan struct{})
 	hosts := make([]*fuse.FileSystemHost, len(mountArgs))
 	for index, value := range mountArgs {
-		fmt.Println("mount args",value)
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
-			fmt.Println("args", args, fs.root)
 			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
