@@ -274,7 +274,7 @@ func main() {
 	}
 	//var mountArgs []MountArgs
 	mountArgs = append(mountArgs, MountArgs{
-	Args: []string{"-o", "allow_other", "-o","debug",  dataPoint},
+	Args: []string{"-o", "allow_other",   dataPoint},
 		PassFS: Ptfs{
 			root: dataOrigin,
 		},

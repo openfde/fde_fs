@@ -273,7 +273,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 			return -int(syscall.EACCES), 0
 		}
 	} else {
-		//is fde
+		//from android 
 		//todo based as only one instance of fde, should consider multiple instances of fde
 		//read the permission allowd list to decide whether the uid have permission to do
 
@@ -311,11 +311,16 @@ func (self *Ptfs) Readdir(path string,
 		return errno(e)
 	}
 	nams = append([]string{".", ".."}, nams...)
-	for _, name := range nams {
-		if !fill(name, nil, 0) {
-			break
-		}
-	}
+        for _, name := range nams {
+                if self.original == "/" {
+                        if name == FSPrefix {
+                                continue
+                        }
+                }
+                if !fill(name, nil, 0) {
+                        break
+                }
+        }
 	return 0
 }
 
