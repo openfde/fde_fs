@@ -4,6 +4,7 @@ import (
 	"fde_fs/logger"
 	"os"
 	"os/user"
+	"syscall"
 )
 
 const dataDIRPREFIX = "/.fde"
@@ -52,7 +53,6 @@ func MKDataDir() (dataorigin, data string, err error) {
 			err = os.Mkdir(data, os.ModeDir+0700)
 			if err != nil {
 				logger.Error("mount_mkdir_for_user_datadir", data, err)
-				os.Exit(1)
 				return
 			}
 		}
