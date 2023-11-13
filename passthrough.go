@@ -54,7 +54,6 @@ type Ptfs struct {
 func (self *Ptfs) Init() {
 	defer trace()()
 	//	e := syscall.Chdir(self.root)
-	fmt.Println(self.root, "init root")
 	self.original = self.root
 	// e := syscall.Chdir(self.root)
 	//	if nil == e {
@@ -171,19 +170,18 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 }
 
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
-	path = filepath.Join(self.root, path)
-	fmt.Println("open " + path)
 	defer trace(path, flags)(&errc, &fh)
 	if self.isHostNS() {
 		var st syscall.Stat_t
-		syscall.Stat(path, &st)
+		rpath := filepath.Join(self.root, path)
+		syscall.Stat(rpath, &st)
 		var dstSt fuse.Stat_t
 		copyFusestatFromGostat(&dstSt, &st)
 		uid, gid, _ := fuse.Getcontext()
 		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
 			//-1 means no permission
 			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-			logger.Info("open_dir", info)
+			logger.Info("open", info)
 			return -int(syscall.EACCES), 0
 		}
 	} else {
@@ -282,8 +280,8 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	if self.original == "/" {
 		list := strings.Split(path, "/")
 		if len(list) >= 2 {
-			if list[1] == FSPrefix {
-				return int(syscall.ENOENT), 1
+			if list[1] == FSPrefix  || list[1] == dataDIRPrefix{
+				return -int(syscall.ENOENT), 1
 			}
 		}
 	}
@@ -300,7 +298,6 @@ func (self *Ptfs) Readdir(path string,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
 	path = filepath.Join(self.original, path)
-	fmt.Println(path, "read dir")
 	file, e := os.Open(path)
 	if nil != e {
 		return errno(e)
@@ -313,7 +310,7 @@ func (self *Ptfs) Readdir(path string,
 	nams = append([]string{".", ".."}, nams...)
         for _, name := range nams {
                 if self.original == "/" {
-                        if name == FSPrefix {
+                        if name == FSPrefix || name == dataDIRPrefix{
                                 continue
                         }
                 }

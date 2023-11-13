@@ -7,15 +7,15 @@ import (
 	"syscall"
 )
 
-const dataDIRPREFIX = "/.fde"
+const dataDIRPrefix = "/.fde"
 
 func MKDataDir() (dataorigin, data string, err error) {
-	_, err = os.Stat(dataDIRPREFIX)
+	_, err = os.Stat(dataDIRPrefix)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(dataDIRPREFIX, os.ModeDir+0777)
+			err = os.Mkdir(dataDIRPrefix, os.ModeDir+0777)
 			if err != nil {
-				logger.Error("mount_mkdir_for_datadir", dataDIRPREFIX, err)
+				logger.Error("mount_mkdir_for_datadir", dataDIRPrefix, err)
 				return
 			}
 		}
@@ -25,7 +25,7 @@ func MKDataDir() (dataorigin, data string, err error) {
 		logger.Error("mount_mkdir_for_userdir", nil, err)
 		return
 	}
-	dataorigin = dataDIRPREFIX + "/" + user.Username
+	dataorigin = dataDIRPrefix+ "/" + user.Username
 	_, err = os.Stat(dataorigin)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -55,14 +55,20 @@ func MKDataDir() (dataorigin, data string, err error) {
 				logger.Error("mount_mkdir_for_user_datadir", data, err)
 				return
 			}
-		}
-		//if the dir has not umounted
-		err = syscall.Unmount(data, 0)
-		if err != nil {
-			logger.Error("umount_volumes",data, err)
-			return
-		}
+			err = os.Chown(data, os.Getuid(), os.Getgid())
+			if err != nil {
+				logger.Error("mount_mkdir_for_user_home_datadir", data, err)
+				return
+			}
+		}else{
+		//if the dir is just not umounted
+			err = syscall.Unmount(data, 0)
+			if err != nil {
+				logger.Error("umount_volumes",data, err)
+				return
+			}
 
+		}
 	}
 	return
 }
