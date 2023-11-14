@@ -287,6 +287,7 @@ func main() {
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
+			fmt.Println(args, fs.root)
 			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)

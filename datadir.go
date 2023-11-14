@@ -3,54 +3,47 @@ package main
 import (
 	"fde_fs/logger"
 	"os"
-	"os/user"
 	"syscall"
 )
 
-const dataDIRPrefix = "/.fde"
 
 func MKDataDir() (dataorigin, data string, err error) {
-	_, err = os.Stat(dataDIRPrefix)
+	home, err := os.UserHomeDir()
 	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.Mkdir(dataDIRPrefix, os.ModeDir+0777)
-			if err != nil {
-				logger.Error("mount_mkdir_for_datadir", dataDIRPrefix, err)
-				return
-			}
-		}
-	}
-	user, err := user.Current()
-	if err != nil {
-		logger.Error("mount_mkdir_for_userdir", nil, err)
+		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
-	dataorigin = dataDIRPrefix+ "/" + user.Username
+	dataorigin = home+"/.local/share/waydroid/data"
+	origin := home+"/.local/share/waydroid"
 	_, err = os.Stat(dataorigin)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(dataorigin, os.ModeDir+0700)
+			err = os.MkdirAll(dataorigin, os.ModeDir+0771)
 			if err != nil {
 				logger.Error("mount_mkdir_for_user_datadir", dataorigin, err)
 				return
 			}
 		}
 	}
-	err = os.Chown(dataorigin, os.Getuid(), os.Getgid())
+	uid := os.Getuid()
+	gid := os.Getgid()
+	err = os.Chown(home+"/.local", uid, gid)
+	err = os.Chown(home+"/.local/share", uid, gid)
+	err = os.Chown(origin, uid, gid)
 	if err != nil {
-		logger.Error("chown_for_home", dataorigin, err)
+		logger.Error("chown_for_origin", origin, err)
 		return
 	}
-	home, err := os.UserHomeDir()
+	err = os.Chown(dataorigin, uid, gid)
 	if err != nil {
-		logger.Error("mount_query_home_failed", os.Getuid(), err)
+		logger.Error("chown_for_dataorigin", dataorigin, err)
 		return
 	}
 	data = home + "/fde"
 	_, err = os.Stat(data)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(data, os.ModeDir+0700)
+			err = os.Mkdir(data, os.ModeDir+0771)
 			if err != nil {
 				logger.Error("mount_mkdir_for_user_datadir", data, err)
 				return
