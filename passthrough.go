@@ -172,7 +172,7 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
 	if self.isHostNS() {
-		if strings.Contains(self.original,".local/share/waydroid/data"){
+		if strings.Contains(self.original,".local/share/openfde"){
 			// todo checking wether the top dir is belngs to uid self
 		}else{
 			var st syscall.Stat_t
@@ -189,8 +189,8 @@ func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 			}
 		}
 	} else {
-		//is fde
-		//todo based as only one instance of fde, should consider multiple instances of fde
+		//read the uid of linux user from lxc namespace?
+		//todo should consider multiple instances of openfde
 		//read the permission allowd list to decide whether the uid have permission to do
 
 	}

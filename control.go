@@ -56,7 +56,7 @@ func (self *Ptfs) recordNameSpace() {
 	psCmd := exec.Command("ps", "-ef")
 	grepCmd := exec.Command("grep", "fde_fs")
 	xgrepCmd := exec.Command("grep", "-v", "grep")
-	// 将 ps 命令的输出传递给 grep 命令进行过滤
+	// filter the output of command ps by grep 
 	var output bytes.Buffer
 	grepCmd.Stdin, _ = psCmd.StdoutPipe()
 	xgrepCmd.Stdin, _ = grepCmd.StdoutPipe()
@@ -79,7 +79,7 @@ func (self *Ptfs) recordNameSpace() {
 	}
 	grepCmd.Wait()
 	xgrepCmd.Wait()
-	// 解析 grep 命令的输出
+	// parse the output of the grep command 
 
 	fields := strings.Fields(output.String())
 	if len(fields) < 2 {

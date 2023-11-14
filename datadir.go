@@ -39,7 +39,7 @@ func MKDataDir() (dataorigin, data string, err error) {
 		logger.Error("chown_for_dataorigin", dataorigin, err)
 		return
 	}
-	data = home + "/fde"
+	data = home + "/openfde"
 	_, err = os.Stat(data)
 	if err != nil {
 		if os.IsNotExist(err) {
