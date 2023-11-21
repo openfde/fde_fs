@@ -177,8 +177,8 @@ func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 		if strings.Contains(self.original, Openfde) {
 			dirList := strings.Split(self.original, Openfde)
 			if len(dirList) >= 2 {
-				//the permission of the files, which included by openfde, uses the permission of openfde selfs. 
-				rpath = dirList[0] +"/openfde"
+				//the permission of the files, which included by openfde, uses the permission of home selfs. 
+				rpath = dirList[0]
 				}
 		} else {
 			rpath = filepath.Join(self.root, path)
@@ -276,7 +276,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 		if strings.Contains(self.original, Openfde) {
 			dirList := strings.Split(self.original, Openfde)
 			if len(dirList) >= 2 {
-				rpath = dirList[0]+"/openfde"
+				rpath = dirList[0]
 			}
 		}
 		var st syscall.Stat_t
