@@ -25,13 +25,15 @@ func chownRecursive(startPath, lastPath string, uid, gid int) error {
 	return nil
 }
 
+const Openfde = ".local/share/openfde"
+
 func MKDataDir() (data, openfde string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
-	origin := home + "/.local/share/openfde/"
+	origin := home + "/" + Openfde
 	data = origin + "/media/0"
 	_, err = os.Stat(data)
 	if err != nil {
@@ -43,7 +45,7 @@ func MKDataDir() (data, openfde string, err error) {
 			}
 			uid := os.Getuid()
 			gid := os.Getgid()
-			err = chownRecursive(home, "/.local/share/openfde", uid, gid)
+			err = chownRecursive(home, "/"+Openfde, uid, gid)
 			if err != nil {
 				return
 			}

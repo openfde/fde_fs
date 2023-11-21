@@ -171,10 +171,24 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
+	uid, gid, _ := fuse.Getcontext()
 	if self.isHostNS() {
-		if strings.Contains(self.original,".local/share/openfde"){
+		if strings.Contains(self.original, Openfde) {
 			// todo checking wether the top dir is belngs to uid self
-		}else{
+			dirList := strings.Split(self.original, Openfde)
+			if len(dirList) >= 2 {
+				var st syscall.Stat_t
+				syscall.Stat(dirList[0], &st)
+				var dstSt fuse.Stat_t
+				copyFusestatFromGostat(&dstSt, &st)
+				if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+					//-1 means no permission
+					info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+					logger.Info("open_dir", info)
+					return -int(syscall.EACCES), 0
+				}
+			}
+		} else {
 			var st syscall.Stat_t
 			rpath := filepath.Join(self.root, path)
 			syscall.Stat(rpath, &st)
@@ -262,16 +276,28 @@ func (self *Ptfs) Fsync(path string, datasync bool, fh uint64) (errc int) {
 func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
 	path = filepath.Join(self.original, path)
+	uid, gid, _ := fuse.Getcontext()
 	if self.isHostNS() {
-		if strings.Contains(self.original,".local/share/waydroid/data"){
+		if strings.Contains(self.original, Openfde) {
 			// todo checking wether the top dir is belngs to uid self
-		}else{
-
+			dirList := strings.Split(self.original, Openfde)
+			if len(dirList) >= 2 {
+				var st syscall.Stat_t
+				syscall.Stat(dirList[0], &st)
+				var dstSt fuse.Stat_t
+				copyFusestatFromGostat(&dstSt, &st)
+				if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+					//-1 means no permission
+					info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+					logger.Info("open_dir", info)
+					return -int(syscall.EACCES), 0
+				}
+			}
+		} else {
 			var st syscall.Stat_t
 			syscall.Stat(path, &st)
 			var dstSt fuse.Stat_t
 			copyFusestatFromGostat(&dstSt, &st)
-			uid, gid, _ := fuse.Getcontext()
 			if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
 				//-1 means no permission
 				info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
@@ -280,7 +306,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 			}
 		}
 	} else {
-		//from android 
+		//from android
 		//todo based as only one instance of fde, should consider multiple instances of fde
 		//read the permission allowd list to decide whether the uid have permission to do
 
@@ -289,7 +315,7 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	if self.original == "/" {
 		list := strings.Split(path, "/")
 		if len(list) >= 2 {
-			if list[1] == FSPrefix  {
+			if list[1] == FSPrefix {
 				return -int(syscall.ENOENT), 1
 			}
 		}
@@ -317,16 +343,16 @@ func (self *Ptfs) Readdir(path string,
 		return errno(e)
 	}
 	nams = append([]string{".", ".."}, nams...)
-        for _, name := range nams {
-                if self.original == "/" {
-                        if name == FSPrefix {
-                                continue
-                        }
-                }
-                if !fill(name, nil, 0) {
-                        break
-                }
-        }
+	for _, name := range nams {
+		if self.original == "/" {
+			if name == FSPrefix {
+				continue
+			}
+		}
+		if !fill(name, nil, 0) {
+			break
+		}
+	}
 	return 0
 }
 
