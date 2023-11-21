@@ -2,7 +2,6 @@ package main
 
 import (
 	"fde_fs/logger"
-	"time"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/winfsp/cgofuse/fuse"
 )
@@ -148,15 +148,15 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 		if len(fields) < LenFieldOfSelfMountInfo {
 			continue
 		}
-		//只有第3个元素，仅仅包含/才是原始挂载
+		//continue for the third element is great than one char
 		if len(fields[3]) > 1 {
 			continue
 		}
-		//文件系统不是ext4的过滤掉
+		//continue for the filesystem is not ext4
 		if fields[8] != "ext4" {
 			continue
 		}
-		//不需要loop设备
+		//continue for loop device
 		if strings.Contains(fields[9], "loop") {
 			continue
 		}
@@ -274,7 +274,7 @@ func main() {
 	}
 	//var mountArgs []MountArgs
 	mountArgs = append(mountArgs, MountArgs{
-	Args: []string{"-o", "allow_other",   dataPoint},
+		Args: []string{"-o", "allow_other", dataPoint},
 		PassFS: Ptfs{
 			root: dataOrigin,
 		},
