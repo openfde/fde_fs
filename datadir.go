@@ -38,7 +38,7 @@ func MKDataDir() (data, openfde string, err error) {
 	_, err = os.Stat(data)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(data, os.ModeDir+0771)
+			err = os.MkdirAll(data, os.ModeDir+0751)
 			if err != nil {
 				logger.Error("mount_mkdir_for_user_datadir", data, err)
 				return
@@ -60,7 +60,7 @@ func MKDataDir() (data, openfde string, err error) {
 	_, err = os.Stat(openfde)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(openfde, os.ModeDir+0771)
+			err = os.Mkdir(openfde, os.ModeDir+0751)
 			if err != nil {
 				logger.Error("mount_mkdir_for_user_datadir", openfde, err)
 				return

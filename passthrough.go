@@ -171,37 +171,30 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
-	uid, gid, _ := fuse.Getcontext()
+	var rpath string
 	if self.isHostNS() {
+		//accessing openfde
 		if strings.Contains(self.original, Openfde) {
-			// todo checking wether the top dir is belngs to uid self
 			dirList := strings.Split(self.original, Openfde)
 			if len(dirList) >= 2 {
-				var st syscall.Stat_t
-				syscall.Stat(dirList[0], &st)
-				var dstSt fuse.Stat_t
-				copyFusestatFromGostat(&dstSt, &st)
-				if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-					//-1 means no permission
-					info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-					logger.Info("open_dir", info)
-					return -int(syscall.EACCES), 0
+				//the permission of the files, which included by openfde, uses the permission of openfde selfs. 
+				rpath = dirList[0] +"/openfde"
 				}
-			}
 		} else {
-			var st syscall.Stat_t
-			rpath := filepath.Join(self.root, path)
-			syscall.Stat(rpath, &st)
-			var dstSt fuse.Stat_t
-			copyFusestatFromGostat(&dstSt, &st)
-			uid, gid, _ := fuse.Getcontext()
-			if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-				//-1 means no permission
-				info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-				logger.Info("open", info)
-				return -int(syscall.EACCES), 0
-			}
+			rpath = filepath.Join(self.root, path)
 		}
+		var st syscall.Stat_t
+		syscall.Stat(rpath, &st)
+		var dstSt fuse.Stat_t
+		copyFusestatFromGostat(&dstSt, &st)
+		uid, gid, _ := fuse.Getcontext()
+		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+			//-1 means no permission
+			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+			logger.Info("open", info)
+			return -int(syscall.EACCES), 0
+		}
+
 	} else {
 		//read the uid of linux user from lxc namespace?
 		//todo should consider multiple instances of openfde
@@ -277,33 +270,24 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	defer trace(path)(&errc, &fh)
 	path = filepath.Join(self.original, path)
 	uid, gid, _ := fuse.Getcontext()
+	rpath := path
 	if self.isHostNS() {
+		//accessing openfde
 		if strings.Contains(self.original, Openfde) {
-			// todo checking wether the top dir is belngs to uid self
 			dirList := strings.Split(self.original, Openfde)
 			if len(dirList) >= 2 {
-				var st syscall.Stat_t
-				syscall.Stat(dirList[0], &st)
-				var dstSt fuse.Stat_t
-				copyFusestatFromGostat(&dstSt, &st)
-				if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-					//-1 means no permission
-					info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-					logger.Info("open_dir", info)
-					return -int(syscall.EACCES), 0
-				}
+				rpath = dirList[0]+"/openfde"
 			}
-		} else {
-			var st syscall.Stat_t
-			syscall.Stat(path, &st)
-			var dstSt fuse.Stat_t
-			copyFusestatFromGostat(&dstSt, &st)
-			if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
-				//-1 means no permission
-				info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
-				logger.Info("open_dir", info)
-				return -int(syscall.EACCES), 0
-			}
+		}
+		var st syscall.Stat_t
+		syscall.Stat(rpath, &st)
+		var dstSt fuse.Stat_t
+		copyFusestatFromGostat(&dstSt, &st)
+		if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+			//-1 means no permission
+			info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+			logger.Info("open_dir", info)
+			return -int(syscall.EACCES), 0
 		}
 	} else {
 		//from android
