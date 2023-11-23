@@ -47,10 +47,12 @@ func MKDataDir() (data, openfde string, err error) {
 			gid := os.Getgid()
 			err = chownRecursive(home, "/"+Openfde, uid, gid)
 			if err != nil {
+				logger.Error("fs_chown", "openfde", err)
 				return
 			}
 			chownRecursive(origin, "/media/0", media_rw, media_rw)
 			if err != nil {
+				logger.Error("fs_chown", "media_0", err)
 				return
 			}
 		}
