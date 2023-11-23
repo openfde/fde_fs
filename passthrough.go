@@ -70,6 +70,35 @@ func (self *Ptfs) Destroy() {
 // The FileSystemBase implementation returns -ENOSYS.
 func (self *Ptfs) Access(path string, mask uint32) int {
 	path = filepath.Join(self.root, path)
+	uid, gid, _ := fuse.Getcontext()
+	rpath := path
+	if self.isHostNS() {
+		//accessing openfde
+		if strings.Contains(self.original, Openfde) {
+			dirList := strings.Split(self.original, Openfde)
+			if len(dirList) >= 2 {
+				rpath = dirList[0]
+			}
+			var st syscall.Stat_t
+			syscall.Stat(rpath, &st)
+			var dstSt fuse.Stat_t
+			copyFusestatFromGostat(&dstSt, &st)
+			if !validPermR(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+				//-1 means no permission
+				info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+				logger.Info("open_dir", info)
+				return -int(syscall.EACCES)
+			}else{
+				//more mask need to checking , not just reading
+				return 0
+			}
+		}
+	} else {
+		//from android
+		//todo based as only one instance of fde, should consider multiple instances of fde
+		//read the permission allowd list to decide whether the uid have permission to do
+
+	}
 	return errno(syscall.Access(path, mask))
 }
 
