@@ -3,6 +3,7 @@ package main
 import (
 	"fde_fs/logger"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
@@ -15,12 +16,11 @@ func chownRecursive(startPath, lastPath string, uid, gid int) error {
 		if "" == dirList[i] {
 			continue
 		}
-		startPath += dirList[i]
+		startPath = filepath.Join(startPath, dirList[i])
 		err := os.Chown(startPath, uid, gid)
 		if err != nil {
 			return err
 		}
-		startPath += "/"
 	}
 	return nil
 }
