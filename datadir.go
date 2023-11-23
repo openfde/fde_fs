@@ -33,8 +33,8 @@ func MKDataDir() (data, openfde string, err error) {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
-	origin := home + "/" + Openfde
-	data = origin + "/media/0"
+	origin := filepath.Join(home, Openfde)
+	data = filepath.Join(origin, "/media/0")
 	_, err = os.Stat(data)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -58,7 +58,7 @@ func MKDataDir() (data, openfde string, err error) {
 		}
 	}
 
-	openfde = home + "/openfde"
+	openfde = filepath.Join(home, "openfde")
 	_, err = os.Stat(openfde)
 	if err != nil {
 		if os.IsNotExist(err) {

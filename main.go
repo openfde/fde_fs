@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -211,6 +212,13 @@ func UmountAllVolumes() error {
 	if err != nil {
 		return err
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error("mount_query_home_failed", os.Getuid(), err)
+		return err
+	}
+	openfde := filepath.Join(home, "openfde")
+	syscall.Unmount(openfde, 0)
 	syscall.Setreuid(-1, 0)
 	for _, volume := range entries {
 		path := PathPrefix + volume.Name()
