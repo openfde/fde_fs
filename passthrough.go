@@ -53,7 +53,6 @@ type Ptfs struct {
 
 func (self *Ptfs) Init() {
 	defer trace()()
-	//	e := syscall.Chdir(self.root)
 	self.original = self.root
 	// e := syscall.Chdir(self.root)
 	//	if nil == e {
@@ -194,6 +193,31 @@ func (self *Ptfs) Utimens(path string, tmsp1 []fuse.Timespec) (errc int) {
 
 func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint64) {
 	defer trace(path, flags, mode)(&errc, &fh)
+	var rpath string
+	if self.isHostNS() {
+		if strings.Contains(self.original, Openfde) {
+			dirList := strings.Split(self.original, Openfde)
+			if len(dirList) >= 2 {
+				//the permission of the files, which included by openfde, uses the permission of home selfs. 
+				rpath = dirList[0]
+				var st syscall.Stat_t
+				syscall.Stat(rpath, &st)
+				var dstSt fuse.Stat_t
+				copyFusestatFromGostat(&dstSt, &st)
+				uid, gid, _ := fuse.Getcontext()
+				if !validPermW(uint32(uid), st.Uid, gid, st.Gid, dstSt.Mode) {
+					//-1 means no permission
+					info := fmt.Sprint(uid, "=uid, ", st.Uid, "=fileuid, ", gid, "=gid", st.Gid, "=filegid")
+					logger.Warn("create",info)
+					return -int(syscall.EACCES), 0
+				}
+				syscall.Stat(filepath.Dir(filepath.Join(self.root,path)),&st)
+				copyFusestatFromGostat(&dstSt, &st)
+				defer syscall.Chown(filepath.Join(self.root,path),int(dstSt.Uid),int(dstSt.Gid))
+				return self.open(path,flags,mode)
+			}
+		}
+	}
 	defer setuidgid()()
 	return self.open(path, flags, mode)
 }

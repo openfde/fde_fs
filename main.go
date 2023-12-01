@@ -36,7 +36,7 @@ func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
 	return false
 }
 
-func validPermW(uid, duid, gid, dgid int32, perm uint32) bool {
+func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
 	var own uint32
 	if uid == duid {
 		own = (perm & uint32(0b111000000)) >> 6
@@ -136,6 +136,11 @@ type volumeAndMountPoint struct {
 }
 
 const LenFieldOfSelfMountInfo = 9
+const indexDevice = 9
+const indexFileType = 8
+const indexPath = 3
+const indexMountPoint = 4
+const indexMountID = 0 
 
 func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 	var mountInfoByDevice map[string]volumeAndMountPoint
@@ -146,24 +151,35 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 		//below is a line example of the mountinfo
 		//35 29 8:5 / /data rw,relatime shared:7 - ext4 /dev/sda5 rw
 		//807 790 7:1 / /var/lib/waydroid/rootfs/vendor ro,relatime shared:446 - ext4 /dev/loop1 ro
+		//29 1 252:0 / / rw,relatime shared:1 - ext4 /dev/mapper/vg-root rw
 		if len(fields) < LenFieldOfSelfMountInfo {
 			continue
 		}
-		//continue for the third element is great than one char
-		if len(fields[3]) > 1 {
+		//continue if the third element is great than one char
+		if len(fields[indexPath]) > 1 {
 			continue
 		}
-		//continue for the filesystem is not ext4
-		if fields[8] != "ext4" {
+		//continue if the filesystem is not ext4
+		if fields[indexFileType] != "ext4" {
 			continue
 		}
-		//continue for loop device
-		if strings.Contains(fields[9], "loop") {
+		//continue if the device is a loop device
+		if strings.Contains(fields[indexDevice], "loop") {
 			continue
 		}
-		mountPoint := fields[4]
-		mountID := fields[0]
-		if value, exist := mountInfoByDevice[fields[9]]; exist {
+		mountPoint := fields[indexMountPoint]
+		mountID := fields[indexMountID]
+		//whether a device is lvm 
+		if strings.Contains(fields[indexDevice],"/dev/mapper") {
+			name,err :=os.Readlink(fields[indexDevice])
+			if err != nil {
+				logger.Error("read_volumes_for_lvm", name, err)
+				return nil
+			}
+			name = strings.Replace(name, "..", "/dev", 1)
+			fields[indexDevice] = name
+		}
+		if value, exist := mountInfoByDevice[fields[indexDevice]]; exist {
 			srcMountID, err := strconv.Atoi(value.MountID)
 			if err != nil {
 				continue
@@ -177,7 +193,7 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 				mountID = value.MountID
 			}
 		}
-		mountInfoByDevice[fields[9]] = volumeAndMountPoint{
+		mountInfoByDevice[fields[indexDevice]] = volumeAndMountPoint{
 			MountPoint: mountPoint,
 			MountID:    mountID,
 		}
@@ -190,7 +206,7 @@ func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAn
 	var volumesByDevice map[string]volumeAndMountPoint
 	volumesByDevice = make(map[string]volumeAndMountPoint)
 	for _, v := range files {
-		name, err := os.Readlink("/dev/disk/by-uuid/" + v.Name())
+		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/",  v.Name()))
 		if err != nil {
 			logger.Error("read_volumes", name, err)
 			return nil, err
@@ -218,8 +234,8 @@ func UmountAllVolumes() error {
 		return err
 	}
 	openfde := filepath.Join(home, "openfde")
-	syscall.Unmount(openfde, 0)
 	syscall.Setreuid(-1, 0)
+	syscall.Unmount(openfde, 0)
 	for _, volume := range entries {
 		path := PathPrefix + volume.Name()
 		err = syscall.Unmount(path, 0)
@@ -235,11 +251,12 @@ var _tag_ = "v0.1"
 var _date_ = "20231001"
 
 func main() {
-	var umount, mount, help, version bool
+	var umount, mount, help, version,debug bool
 	flag.BoolVar(&mount, "m", false, "-m")
 	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
 	flag.BoolVar(&help, "h", false, "-h")
+	flag.BoolVar(&debug, "d", false, "-d")
 	flag.Parse()
 
 	switch {
@@ -250,6 +267,7 @@ func main() {
 			fmt.Println("\t-v: print version and tag")
 			fmt.Println("\t-u: umount all volumes")
 			fmt.Println("\t-m: mount all volumes")
+			fmt.Println("\t-d: debug mode")
 			return
 		}
 	case version:
@@ -271,7 +289,7 @@ func main() {
 	if !mount {
 		return
 	}
-	//mount /.fde/username to /HOME/fde
+	//mount /HOME/.local/share/openfde on /HOME/openfde
 	dataOrigin, dataPoint, err := MKDataDir()
 	if err != nil {
 		os.Exit(1)
@@ -281,8 +299,13 @@ func main() {
 		os.Exit(1)
 	}
 	//var mountArgs []MountArgs
+	args := []string{"-o","allow_other","-o","nonempty"}
+	if debug {
+		args = append(args,"-o","debug")
+	}
+	args = append(args,dataPoint)
 	mountArgs = append(mountArgs, MountArgs{
-		Args: []string{"-o", "allow_other", dataPoint},
+		Args: args,
 		PassFS: Ptfs{
 			root: dataOrigin,
 		},
@@ -295,7 +318,9 @@ func main() {
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
-			fmt.Println(args, fs.root)
+			if debug {
+				fmt.Println(args, fs.root)
+			}
 			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
@@ -305,9 +330,9 @@ func main() {
 		time.Sleep(time.Second)
 	}
 	go func() {
-		wg.Wait()        //wiating for all goroutine
+		wg.Wait()        //waitting for all goroutine
 		ch <- struct{}{} //unlock the main goroutine
 	}()
-	<-ch //阻塞在此
+	<-ch //block here 
 	logger.Info("mount_exit", "exit")
 }
