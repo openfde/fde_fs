@@ -70,15 +70,15 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		return
 	}
 	mountInfoByDevice := readDevicesAndMountPoint(mounts)
-	files, err := ioutil.ReadDir("/dev/disk/by-uuid")
+	files, err := ioutil.ReadDir("/dev/disk/by-partlabel")
 	if err != nil {
 		logger.Error("mount_read_disk", mounts, err)
 		return
 	}
 	logger.Info("mount_info_by_device", mountInfoByDevice)
-	volumes, err := supplementVolume(files, mountInfoByDevice)
+	volumes, err := supplementPartLabel(files, mountInfoByDevice)
 	if err != nil {
-		logger.Error("mount_supplement_volume", mounts, err)
+		logger.Error("mount_supplement_partlabel", mounts, err)
 		return
 	}
 
@@ -87,36 +87,42 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		if os.IsNotExist(err) {
 			err = os.Mkdir(PathPrefix, os.ModeDir+0755)
 			if err != nil {
-				logger.Error("mount_mkdir_for_volumes", PathPrefix, err)
+				logger.Error("mount_mkdir_for_mountpoint", PathPrefix, err)
 				return
 			}
 		}
 	}
 	logger.Info("in_mount", volumes)
-	for _, mountInfo := range volumes {
-		path := PathPrefix + mountInfo.Volume
-		_, err = os.Stat(path)
+	for deviceName, devicePartInfo := range volumes {
+		//mountPath used as the mountpoint which compositor with device name and label name
+		mountPath := PathPrefix + filepath.Base(deviceName)
+		if len(devicePartInfo.LabelName) != 0 {
+			//replace the blank with _
+			labelName := strings.ReplaceAll(devicePartInfo.LabelName, " ", "_")
+			mountPath += "/" + labelName
+		}
+		_, err = os.Stat(mountPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				err = os.Mkdir(path, os.ModeDir+0755)
+				err = os.Mkdir(mountPath, os.ModeDir+0755)
 				if err != nil {
-					logger.Error("mount_mkdir_for_volumes", mountInfo, err)
+					logger.Error("mount_mkdir_for_volumes", devicePartInfo, err)
 					return
 				}
 			} else {
-				logger.Error("mount_stat_volume", path, err)
-				err = syscall.Unmount(path, 0)
+				logger.Error("mount_stat_volume", mountPath, err)
+				err = syscall.Unmount(mountPath, 0)
 				if err != nil {
-					logger.Error("umount_volumes", path, err)
+					logger.Error("umount_volumes", mountPath, err)
 					return
 				}
 			}
 		}
 
 		mArgs = append(mArgs, MountArgs{
-			Args: []string{"-o", "allow_other", PathPrefix + mountInfo.Volume},
+			Args: []string{"-o", "allow_other", mountPath},
 			PassFS: Ptfs{
-				root: mountInfo.MountPoint,
+				root: devicePartInfo.MountPoint,
 			},
 		})
 	}
@@ -128,10 +134,11 @@ type MountArgs struct {
 	PassFS Ptfs
 }
 
-type volumeAndMountPoint struct {
+type volumeInfo struct {
 	Volume     string
-	MountPoint string
-	MountID    string
+	MountPoint string // used to decide the root dir of the volume
+	MountID    string //used to decide the original mounting by selecting the minimum number
+	LabelName  string //used to be a elemet of formming a mount point
 	// MountType  string
 }
 
@@ -140,11 +147,11 @@ const indexDevice = 9
 const indexFileType = 8
 const indexPath = 3
 const indexMountPoint = 4
-const indexMountID = 0 
+const indexMountID = 0
 
-func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
-	var mountInfoByDevice map[string]volumeAndMountPoint
-	mountInfoByDevice = make(map[string]volumeAndMountPoint)
+func readDevicesAndMountPoint(mounts []byte) map[string]volumeInfo {
+	var mountInfoByDevice map[string]volumeInfo
+	mountInfoByDevice = make(map[string]volumeInfo)
 	lines := strings.Split(string(mounts), "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
@@ -169,13 +176,14 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 		}
 		mountPoint := fields[indexMountPoint]
 		mountID := fields[indexMountID]
-		//whether a device is lvm 
-		if strings.Contains(fields[indexDevice],"/dev/mapper") {
-			name,err :=os.Readlink(fields[indexDevice])
+		//whether a device is lvm
+		if strings.Contains(fields[indexDevice], "/dev/mapper") {
+			name, err := os.Readlink(fields[indexDevice])
 			if err != nil {
 				logger.Error("read_volumes_for_lvm", name, err)
 				return nil
 			}
+			//name is like ../../sda should replace the name with the actually device
 			name = strings.Replace(name, "..", "/dev", 1)
 			fields[indexDevice] = name
 		}
@@ -193,7 +201,7 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 				mountID = value.MountID
 			}
 		}
-		mountInfoByDevice[fields[indexDevice]] = volumeAndMountPoint{
+		mountInfoByDevice[fields[indexDevice]] = volumeInfo{
 			MountPoint: mountPoint,
 			MountID:    mountID,
 		}
@@ -202,19 +210,20 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 
 }
 
-func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAndMountPoint) (map[string]volumeAndMountPoint, error) {
-	var volumesByDevice map[string]volumeAndMountPoint
-	volumesByDevice = make(map[string]volumeAndMountPoint)
+func supplementPartLabel(files []fs.FileInfo, mountInfoByDevice map[string]volumeInfo) (map[string]volumeInfo, error) {
+	var volumesByDevice map[string]volumeInfo
+	volumesByDevice = make(map[string]volumeInfo)
 	for _, v := range files {
-		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/",  v.Name()))
+		name, err := os.Readlink(filepath.Join("/dev/disk/by-partlabel/", v.Name()))
 		if err != nil {
 			logger.Error("read_volumes", name, err)
 			return nil, err
 		}
+		//to get the name of device like /dev/sda
 		name = strings.Replace(name, "../..", "/dev", 1)
 		if value, exist := mountInfoByDevice[name]; exist {
-			volumesByDevice[name] = volumeAndMountPoint{
-				Volume:     v.Name(),
+			volumesByDevice[name] = volumeInfo{
+				LabelName:  v.Name(),
 				MountPoint: value.MountPoint,
 				MountID:    value.MountID,
 			}
@@ -222,6 +231,28 @@ func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAn
 	}
 	return volumesByDevice, nil
 }
+
+// func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeInfo) (map[string]volumeInfo, error) {
+// 	var volumesByDevice map[string]volumeInfo
+// 	volumesByDevice = make(map[string]volumeInfo)
+// 	for _, v := range files {
+// 		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/", v.Name()))
+// 		if err != nil {
+// 			logger.Error("read_volumes", name, err)
+// 			return nil, err
+// 		}
+// 		//to get the name of device like /dev/sda
+// 		name = strings.Replace(name, "../..", "/dev", 1)
+// 		if value, exist := mountInfoByDevice[name]; exist {
+// 			volumesByDevice[name] = volumeInfo{
+// 				Volume:     v.Name(),
+// 				MountPoint: value.MountPoint,
+// 				MountID:    value.MountID,
+// 			}
+// 		}
+// 	}
+// 	return volumesByDevice, nil
+// }
 
 func UmountAllVolumes() error {
 	entries, err := os.ReadDir(PathPrefix)
@@ -251,7 +282,7 @@ var _tag_ = "v0.1"
 var _date_ = "20231001"
 
 func main() {
-	var umount, mount, help, version,debug bool
+	var umount, mount, help, version, debug bool
 	flag.BoolVar(&mount, "m", false, "-m")
 	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
@@ -299,11 +330,11 @@ func main() {
 		os.Exit(1)
 	}
 	//var mountArgs []MountArgs
-	args := []string{"-o","allow_other","-o","nonempty"}
+	args := []string{"-o", "allow_other", "-o", "nonempty"}
 	if debug {
-		args = append(args,"-o","debug")
+		args = append(args, "-o", "debug")
 	}
-	args = append(args,dataPoint)
+	args = append(args, dataPoint)
 	mountArgs = append(mountArgs, MountArgs{
 		Args: args,
 		PassFS: Ptfs{
@@ -333,6 +364,6 @@ func main() {
 		wg.Wait()        //waitting for all goroutine
 		ch <- struct{}{} //unlock the main goroutine
 	}()
-	<-ch //block here 
+	<-ch //block here
 	logger.Info("mount_exit", "exit")
 }
