@@ -4,7 +4,6 @@ import (
 	"fde_fs/logger"
 	"flag"
 	"fmt"
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -70,28 +69,24 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		return
 	}
 	mountInfoByDevice := readDevicesAndMountPoint(mounts)
-	files, err := ioutil.ReadDir("/dev/disk/by-partlabel")
-	if err != nil {
-		logger.Error("mount_read_disk", mounts, err)
-		return
-	}
 	logger.Info("mount_info_by_device", mountInfoByDevice)
-	volumes, err := supplementPartLabel(files, mountInfoByDevice)
+	volumes, err := supplementPartLabel(mountInfoByDevice)
 	if err != nil {
 		logger.Error("mount_supplement_partlabel", mounts, err)
 		return
 	}
-
-	_, err = os.Stat(PathPrefix)
+	//remove the whole dir to keep no historic dir left
+	err = os.RemoveAll(PathPrefix)
 	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.Mkdir(PathPrefix, os.ModeDir+0755)
-			if err != nil {
-				logger.Error("mount_mkdir_for_mountpoint", PathPrefix, err)
-				return
-			}
-		}
+		logger.Error("remove_prefix_path", PathPrefix, err)
+		return
 	}
+	err = os.Mkdir(PathPrefix, os.ModeDir+0755)
+	if err != nil {
+		logger.Error("mount_mkdir_for_mountpoint", PathPrefix, err)
+		return
+	}
+
 	logger.Info("in_mount", volumes)
 	for deviceName, devicePartInfo := range volumes {
 		//mountPath used as the mountpoint which compositor with device name and label name
@@ -210,7 +205,13 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeInfo {
 
 }
 
-func supplementPartLabel(files []fs.FileInfo, mountInfoByDevice map[string]volumeInfo) (map[string]volumeInfo, error) {
+func supplementPartLabel(mountInfoByDevice map[string]volumeInfo) (map[string]volumeInfo, error) {
+
+	files, err := ioutil.ReadDir("/dev/disk/by-partlabel")
+	if err != nil {
+		logger.Error("mount_read_disk", mounts, err)
+		return
+	}
 	var volumesByDevice map[string]volumeInfo
 	volumesByDevice = make(map[string]volumeInfo)
 	for _, v := range files {
