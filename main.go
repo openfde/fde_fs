@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fde_fs/logger"
 	"flag"
 	"fmt"
@@ -62,6 +63,11 @@ func readProcess(pid uint32) {
 	ioutil.ReadFile("/proc/" + fmt.Sprint(pid) + "/environ")
 }
 
+type uuidToPath struct {
+	UUID string
+	Path string
+}
+
 func ConstructMountArgs() (mArgs []MountArgs, err error) {
 	syscall.Umask(0)
 	mounts, err := os.ReadFile("/proc/self/mountinfo")
@@ -82,6 +88,8 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		return
 	}
 
+	//register the volumes info into fde_ctrl
+
 	_, err = os.Stat(PathPrefix)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -93,8 +101,13 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		}
 	}
 	logger.Info("in_mount", volumes)
+	var uuidToPaths []uuidToPath
 	for _, mountInfo := range volumes {
-		path := PathPrefix + mountInfo.Volume
+		path := PathPrefix + mountInfo.VolumeUUID
+		uuidToPaths = append(uuidToPaths, uuidToPath{
+			UUID: mountInfo.VolumeUUID,
+			Path: mountInfo.MountPoint,
+		})
 		_, err = os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -114,13 +127,33 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		}
 
 		mArgs = append(mArgs, MountArgs{
-			Args: []string{"-o", "allow_other", PathPrefix + mountInfo.Volume},
+			Args: []string{"-o", "allow_other", PathPrefix + mountInfo.VolumeUUID},
 			PassFS: Ptfs{
 				root: mountInfo.MountPoint,
 			},
 		})
 	}
+	if len(uuidToPaths) > 0 {
+		err := WriteJSONToFile("/volumes/.fde_path_key", uuidToPaths)
+		if err != nil {
+			logger.Error("write_fde_path", uuidToPaths, err)
+		}
+	}
 	return
+}
+
+func WriteJSONToFile(filename string, data interface{}) error {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filename, jsonData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type MountArgs struct {
@@ -129,7 +162,7 @@ type MountArgs struct {
 }
 
 type volumeAndMountPoint struct {
-	Volume     string
+	VolumeUUID string
 	MountPoint string
 	MountID    string
 	// MountType  string
@@ -140,7 +173,7 @@ const indexDevice = 9
 const indexFileType = 8
 const indexPath = 3
 const indexMountPoint = 4
-const indexMountID = 0 
+const indexMountID = 0
 
 func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 	var mountInfoByDevice map[string]volumeAndMountPoint
@@ -169,9 +202,9 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 		}
 		mountPoint := fields[indexMountPoint]
 		mountID := fields[indexMountID]
-		//whether a device is lvm 
-		if strings.Contains(fields[indexDevice],"/dev/mapper") {
-			name,err :=os.Readlink(fields[indexDevice])
+		//whether a device is lvm
+		if strings.Contains(fields[indexDevice], "/dev/mapper") {
+			name, err := os.Readlink(fields[indexDevice])
 			if err != nil {
 				logger.Error("read_volumes_for_lvm", name, err)
 				return nil
@@ -206,7 +239,7 @@ func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAn
 	var volumesByDevice map[string]volumeAndMountPoint
 	volumesByDevice = make(map[string]volumeAndMountPoint)
 	for _, v := range files {
-		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/",  v.Name()))
+		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/", v.Name()))
 		if err != nil {
 			logger.Error("read_volumes", name, err)
 			return nil, err
@@ -214,7 +247,7 @@ func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAn
 		name = strings.Replace(name, "../..", "/dev", 1)
 		if value, exist := mountInfoByDevice[name]; exist {
 			volumesByDevice[name] = volumeAndMountPoint{
-				Volume:     v.Name(),
+				VolumeUUID: v.Name(),
 				MountPoint: value.MountPoint,
 				MountID:    value.MountID,
 			}
@@ -251,7 +284,7 @@ var _tag_ = "v0.1"
 var _date_ = "20231001"
 
 func main() {
-	var umount, mount, help, version,debug bool
+	var umount, mount, help, version, debug bool
 	flag.BoolVar(&mount, "m", false, "-m")
 	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
@@ -299,11 +332,11 @@ func main() {
 		os.Exit(1)
 	}
 	//var mountArgs []MountArgs
-	args := []string{"-o","allow_other","-o","nonempty"}
+	args := []string{"-o", "allow_other", "-o", "nonempty"}
 	if debug {
-		args = append(args,"-o","debug")
+		args = append(args, "-o", "debug")
 	}
-	args = append(args,dataPoint)
+	args = append(args, dataPoint)
 	mountArgs = append(mountArgs, MountArgs{
 		Args: args,
 		PassFS: Ptfs{
@@ -333,6 +366,6 @@ func main() {
 		wg.Wait()        //waitting for all goroutine
 		ch <- struct{}{} //unlock the main goroutine
 	}()
-	<-ch //block here 
+	<-ch //block here
 	logger.Info("mount_exit", "exit")
 }
