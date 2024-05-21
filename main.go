@@ -19,6 +19,7 @@ import (
 )
 
 func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
+	return true
 	var own uint32
 	if uid == duid {
 		own = (perm & uint32(0b111000000)) >> 6
@@ -38,6 +39,7 @@ func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
 }
 
 func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
+	return true
 	var own uint32
 	if uid == duid {
 		own = (perm & uint32(0b111000000)) >> 6
@@ -336,13 +338,64 @@ func main() {
 	if debug {
 		args = append(args, "-o", "debug")
 	}
-	args = append(args, dataPoint)
+	// args = append(args, dataPoint)
+	// mountArgs = append(mountArgs, MountArgs{
+	// 	Args: args,
+	// 	PassFS: Ptfs{
+	// 		root: dataOrigin,
+	// 	},
+	// })
+	videoArgs := make([]string, len(args))
+	musicArgs := make([]string, len(args))
+	documentsArgs := make([]string, len(args))
+	pictureArgs := make([]string, len(args))
+	downloadArgs := make([]string, len(args))
+
+	copy(videoArgs, args)
+	copy(musicArgs, args)
+	copy(documentsArgs, args)
+	copy(pictureArgs, args)
+	copy(downloadArgs, args)
+	videoArgs = append(videoArgs, filepath.Join(dataOrigin, "Movies"))
+	musicArgs = append(musicArgs, filepath.Join(dataOrigin, "Music"))
+	documentsArgs = append(documentsArgs, filepath.Join(dataOrigin, "Documents"))
+	pictureArgs = append(pictureArgs, filepath.Join(dataOrigin, "Pictures"))
+	downloadArgs = append(downloadArgss, filepath.Join(dataOrigin, "Download"))
+
 	mountArgs = append(mountArgs, MountArgs{
-		Args: args,
+		Args: videoArgs,
 		PassFS: Ptfs{
-			root: dataOrigin,
+			root: "/home/openfde/视频",
 		},
 	})
+
+	mountArgs = append(mountArgs, MountArgs{
+		Args: musicArgs,
+		PassFS: Ptfs{
+			root: "/home/openfde/音乐",
+		},
+	})
+	mountArgs = append(mountArgs, MountArgs{
+		Args: documentsArgs,
+		PassFS: Ptfs{
+			root: "/home/openfde/文档",
+		},
+	})
+
+	mountArgs = append(mountArgs, MountArgs{
+		Args: pictureArgs,
+		PassFS: Ptfs{
+			root: "/home/openfde/图片",
+		},
+	})
+
+	mountArgs = append(mountArgs, MountArgs{
+		Args: downloadArgs,
+		PassFS: Ptfs{
+			root: "/home/openfde/下载",
+		},
+	})
+
 	var wg sync.WaitGroup
 	wg.Add(len(mountArgs))
 	ch := make(chan struct{})
