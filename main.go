@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fde_fs/logger"
+	"fde_fs/personal_fusing"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -19,7 +20,6 @@ import (
 )
 
 func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
-	return true
 	var own uint32
 	if uid == duid {
 		own = (perm & uint32(0b111000000)) >> 6
@@ -39,7 +39,6 @@ func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
 }
 
 func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
-	return true
 	var own uint32
 	if uid == duid {
 		own = (perm & uint32(0b111000000)) >> 6
@@ -286,22 +285,36 @@ var _tag_ = "v0.1"
 var _date_ = "20231001"
 
 func main() {
-	var umount, mount, help, version, debug bool
+	var umount, mount, help, version, debug, ptfsmount, ptfsumount bool
 	flag.BoolVar(&mount, "m", false, "-m")
 	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
 	flag.BoolVar(&help, "h", false, "-h")
 	flag.BoolVar(&debug, "d", false, "-d")
+	flag.BoolVar(&ptfsmount, "pm", false, "-pm")
+	flag.BoolVar(&ptfsumount, "pu", false, "-pu")
 	flag.Parse()
 
 	switch {
+	case ptfsmount:
+		{
+			personal_fusing.MountPtfs()
+			return
+		}
+	case ptfsumount:
+		{
+			personal_fusing.UmountPtfs()
+			return
+		}
 	case help:
 		{
 			fmt.Println("fde_fs:")
 			fmt.Println("\t-h: help")
 			fmt.Println("\t-v: print version and tag")
 			fmt.Println("\t-u: umount all volumes")
-			fmt.Println("\t-m: mount all volumes")
+			fmt.Println("\t-pm: mount personal fusing")
+			fmt.Println("\t-pu: umount personlal fusing")
+			fmt.Println("\t-u: umount all volumes")
 			fmt.Println("\t-d: debug mode")
 			return
 		}
@@ -338,61 +351,11 @@ func main() {
 	if debug {
 		args = append(args, "-o", "debug")
 	}
-	// args = append(args, dataPoint)
-	// mountArgs = append(mountArgs, MountArgs{
-	// 	Args: args,
-	// 	PassFS: Ptfs{
-	// 		root: dataOrigin,
-	// 	},
-	// })
-	videoArgs := make([]string, len(args))
-	musicArgs := make([]string, len(args))
-	documentsArgs := make([]string, len(args))
-	pictureArgs := make([]string, len(args))
-	downloadArgs := make([]string, len(args))
-
-	copy(videoArgs, args)
-	copy(musicArgs, args)
-	copy(documentsArgs, args)
-	copy(pictureArgs, args)
-	copy(downloadArgs, args)
-	videoArgs = append(videoArgs, filepath.Join(dataOrigin, "Movies"))
-	musicArgs = append(musicArgs, filepath.Join(dataOrigin, "Music"))
-	documentsArgs = append(documentsArgs, filepath.Join(dataOrigin, "Documents"))
-	pictureArgs = append(pictureArgs, filepath.Join(dataOrigin, "Pictures"))
-	downloadArgs = append(downloadArgss, filepath.Join(dataOrigin, "Download"))
-
+	args = append(args, dataPoint)
 	mountArgs = append(mountArgs, MountArgs{
-		Args: videoArgs,
+		Args: args,
 		PassFS: Ptfs{
-			root: "/home/openfde/视频",
-		},
-	})
-
-	mountArgs = append(mountArgs, MountArgs{
-		Args: musicArgs,
-		PassFS: Ptfs{
-			root: "/home/openfde/音乐",
-		},
-	})
-	mountArgs = append(mountArgs, MountArgs{
-		Args: documentsArgs,
-		PassFS: Ptfs{
-			root: "/home/openfde/文档",
-		},
-	})
-
-	mountArgs = append(mountArgs, MountArgs{
-		Args: pictureArgs,
-		PassFS: Ptfs{
-			root: "/home/openfde/图片",
-		},
-	})
-
-	mountArgs = append(mountArgs, MountArgs{
-		Args: downloadArgs,
-		PassFS: Ptfs{
-			root: "/home/openfde/下载",
+			root: dataOrigin,
 		},
 	})
 

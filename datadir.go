@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 var media_rw = 1023 //the uid ,1023 is media_rw of android
@@ -57,36 +58,29 @@ func MKDataDir() (data, openfde string, err error) {
 		}
 	}
 
-	//continue to mkdir Download Movies Pictures Music Documents
-	os.Mkdir(filepath.Join(data, "/Download"), os.ModeDir+0700)
-	os.Mkdir(filepath.Join(data, "/Movies"), os.ModeDir+0700)
-	os.Mkdir(filepath.Join(data, "/Pictures"), os.ModeDir+0700)
-	os.Mkdir(filepath.Join(data, "/Music"), os.ModeDir+0700)
-	os.Mkdir(filepath.Join(data, "/Documents"), os.ModeDir+0700)
+	openfde = filepath.Join(home, "openfde")
+	_, err = os.Stat(openfde)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.Mkdir(openfde, os.ModeDir+0751)
+			if err != nil {
+				logger.Error("mount_mkdir_for_user_datadir", openfde, err)
+				return
+			}
+			err = os.Chown(openfde, os.Getuid(), os.Getgid())
+			if err != nil {
+				logger.Error("mount_mkdir_for_user_home_datadir", openfde, err)
+				return
+			}
+		} else {
+			//if the dir is just not umounted
+			err = syscall.Unmount(openfde, 0)
+			if err != nil {
+				logger.Error("umount_volumes", openfde, err)
+				return
+			}
 
-	// openfde = filepath.Join(home, "openfde")
-	// _, err = os.Stat(openfde)
-	// if err != nil {
-	// 	if os.IsNotExist(err) {
-	// 		err = os.Mkdir(openfde, os.ModeDir+0751)
-	// 		if err != nil {
-	// 			logger.Error("mount_mkdir_for_user_datadir", openfde, err)
-	// 			return
-	// 		}
-	// 		err = os.Chown(openfde, os.Getuid(), os.Getgid())
-	// 		if err != nil {
-	// 			logger.Error("mount_mkdir_for_user_home_datadir", openfde, err)
-	// 			return
-	// 		}
-	// 	} else {
-	// 		//if the dir is just not umounted
-	// 		err = syscall.Unmount(openfde, 0)
-	// 		if err != nil {
-	// 			logger.Error("umount_volumes", openfde, err)
-	// 			return
-	// 		}
-
-	// 	}
-	// }
+		}
+	}
 	return
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fde_fs/logger"
-	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -39,24 +38,11 @@ func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
 	return
 }
 
-func (self *Ptfs) isHomeFDE() bool {
-	fmt.Println("in is home fde")
-	list := strings.Split(self.original, "/")
-	if len(list) < 4 {
-		return false
-	}
-	fmt.Println("in is home fde args", list[1], list[3])
-	if list[1] == "home" && list[3] == "fde" {
-		return true
-	}
-	return false
-}
-
 func (self *Ptfs) recordNameSpace() {
 	psCmd := exec.Command("ps", "-ef")
 	grepCmd := exec.Command("grep", "fde_fs")
 	xgrepCmd := exec.Command("grep", "-v", "grep")
-	// filter the output of command ps by grep 
+	// filter the output of command ps by grep
 	var output bytes.Buffer
 	grepCmd.Stdin, _ = psCmd.StdoutPipe()
 	xgrepCmd.Stdin, _ = grepCmd.StdoutPipe()
@@ -79,7 +65,7 @@ func (self *Ptfs) recordNameSpace() {
 	}
 	grepCmd.Wait()
 	xgrepCmd.Wait()
-	// parse the output of the grep command 
+	// parse the output of the grep command
 
 	fields := strings.Fields(output.String())
 	if len(fields) < 2 {
