@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/winfsp/cgofuse/examples/shared"
 	"github.com/winfsp/cgofuse/fuse"
@@ -359,24 +358,22 @@ func MountPtfs() error {
 		return err
 	}
 
-	
 	// var mountArgs []MountArgs
 	// for i, v := range argsList {
 	// 	logger.Info("construct_ptfs_args", fmt.Sprintln(v, rlinuxList[i]))
 	// 	go mountFdePtfs(rlinuxList[i], randroidList[i])
-		// mountArgs = append(mountArgs, MountArgs{
-		// 	Args: v,
-		// 	PassFS: Ptfs{
-		// 		root: rlinuxList[i],
-		// 	},
-		// })
-	}
+	// mountArgs = append(mountArgs, MountArgs{
+	// 	Args: v,
+	// 	PassFS: Ptfs{
+	// 		root: rlinuxList[i],
+	// 	},
+	// })
+	// }
 
 	var wg sync.WaitGroup
 	wg.Add(len(randroidList))
 	ch := make(chan struct{})
 	// hosts := make([]*fuse.FileSystemHost, len(mountArgs))
-
 
 	for i, _ := range randroidList {
 		go func() {
@@ -386,8 +383,7 @@ func MountPtfs() error {
 				logger.Error("mount_ptfsfuse_error", tr, nil)
 				ch <- struct{}{}
 			}
-
-		}
+		}()
 		// tmpList := make([]string, len(args))
 		// copy(tmpList, args)
 		// tmpList = append(tmpList, v)
