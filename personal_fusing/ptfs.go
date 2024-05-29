@@ -346,12 +346,13 @@ func mountFdePtfs(sourcePath, targetPath string) error {
 	if err != nil {
 		return err
 	}
+	return nil
 }
 
 func MountPtfs() error {
 	syscall.Umask(0)
-	args := []string{"-o", "allow_other", "-o", "nonempty"}
-	var argsList [][]string
+	// args := []string{"-o", "allow_other", "-o", "nonempty"}
+	// var argsList [][]string
 	rlinuxList, randroidList, err := getUserFolders()
 	if err != nil {
 		logger.Error("mount_dir_fusing", nil, err)
