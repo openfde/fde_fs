@@ -377,14 +377,14 @@ func MountPtfs() error {
 	// hosts := make([]*fuse.FileSystemHost, len(mountArgs))
 
 	for i, _ := range randroidList {
-		go func() {
+		go func(source, target string) {
 			defer wg.Done()
-			err := mountFdePtfs(rlinuxList[i], randroidList[i])
+			err := mountFdePtfs(source, target)
 			if err != nil {
-				logger.Error("mount_ptfsfuse_error", tr, nil)
+				logger.Error("mount_ptfsfuse_error", err, nil)
 				ch <- struct{}{}
 			}
-		}()
+		}(rlinuxList[i], randroidList[i])
 		// tmpList := make([]string, len(args))
 		// copy(tmpList, args)
 		// tmpList = append(tmpList, v)
