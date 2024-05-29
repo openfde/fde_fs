@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -340,6 +341,14 @@ type MountArgs struct {
 	PassFS Ptfs
 }
 
+func mountFdePtfs(sourcePath, targetPath string) error {
+	cmd := exec.Command("fde_ptfs", "-o", "nonempty", "-o", "allow_other", sourcePath, targetPath)
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+}
+
 func MountPtfs() error {
 	syscall.Umask(0)
 	args := []string{"-o", "allow_other", "-o", "nonempty"}
@@ -350,39 +359,54 @@ func MountPtfs() error {
 		return err
 	}
 
-	for _, v := range randroidList {
-		tmpList := make([]string, len(args))
-		copy(tmpList, args)
-		tmpList = append(tmpList, v)
-		argsList = append(argsList, tmpList)
-	}
-	var mountArgs []MountArgs
-	for i, v := range argsList {
-		mountArgs = append(mountArgs, MountArgs{
-			Args: v,
-			PassFS: Ptfs{
-				root: rlinuxList[i],
-			},
-		})
+	
+	// var mountArgs []MountArgs
+	// for i, v := range argsList {
+	// 	logger.Info("construct_ptfs_args", fmt.Sprintln(v, rlinuxList[i]))
+	// 	go mountFdePtfs(rlinuxList[i], randroidList[i])
+		// mountArgs = append(mountArgs, MountArgs{
+		// 	Args: v,
+		// 	PassFS: Ptfs{
+		// 		root: rlinuxList[i],
+		// 	},
+		// })
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(len(mountArgs))
+	wg.Add(len(randroidList))
 	ch := make(chan struct{})
-	hosts := make([]*fuse.FileSystemHost, len(mountArgs))
-	for index, value := range mountArgs {
-		go func(args []string, fs Ptfs, c chan struct{}) {
+	// hosts := make([]*fuse.FileSystemHost, len(mountArgs))
+
+
+	for i, _ := range randroidList {
+		go func() {
 			defer wg.Done()
-			hosts[index] = fuse.NewFileSystemHost(&fs)
-			tr := hosts[index].Mount("", args)
-			logger.Info("mount_volume", fmt.Sprintln(args, fs.root))
-			if !tr {
+			err := mountFdePtfs(rlinuxList[i], randroidList[i])
+			if err != nil {
 				logger.Error("mount_ptfsfuse_error", tr, nil)
-				c <- struct{}{}
+				ch <- struct{}{}
 			}
-		}(value.Args, value.PassFS, ch)
-		time.Sleep(time.Second)
+
+		}
+		// tmpList := make([]string, len(args))
+		// copy(tmpList, args)
+		// tmpList = append(tmpList, v)
+		// argsList = append(argsList, tmpList)
 	}
+	// for index, value := range mountArgs {
+
+	// 	func(args []string, fs Ptfs, c chan struct{}) {
+	// 		defer wg.Done()
+	// 		hosts[index] = fuse.NewFileSystemHost(&mountArgs[index].PassFS)
+	// 		tr := hosts[index].Mount("", args)
+	// 		logger.Info("mount_volume", fmt.Sprintln(args, fs.root))
+	// 		if !tr {
+	// 			logger.Error("mount_ptfsfuse_error", tr, nil)
+	// 			c <- struct{}{}
+	// 		}
+	// 	}(value.Args, value.PassFS, ch)
+	// 	time.Sleep(time.Second)
+	// }
 	go func() {
 		wg.Wait()        //waitting for all goroutine
 		ch <- struct{}{} //unlock the main goroutine
