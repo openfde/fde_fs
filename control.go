@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fde_fs/logger"
 	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/winfsp/cgofuse/fuse"
@@ -39,39 +36,9 @@ func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
 }
 
 func (self *Ptfs) recordNameSpace() {
-	psCmd := exec.Command("ps", "-ef")
-	grepCmd := exec.Command("grep", "fde_fs")
-	xgrepCmd := exec.Command("grep", "-v", "grep")
-	// filter the output of command ps by grep
-	var output bytes.Buffer
-	grepCmd.Stdin, _ = psCmd.StdoutPipe()
-	xgrepCmd.Stdin, _ = grepCmd.StdoutPipe()
-	xgrepCmd.Stdout = &output
-	err := psCmd.Start()
-	if err != nil {
-		return
-	}
-	err = grepCmd.Start()
-	if err != nil {
-		return
-	}
-	err = xgrepCmd.Start()
-	if err != nil {
-		return
-	}
-	err = psCmd.Wait()
-	if err != nil {
-		return
-	}
-	grepCmd.Wait()
-	xgrepCmd.Wait()
-	// parse the output of the grep command
-
-	fields := strings.Fields(output.String())
-	if len(fields) < 2 {
-		return
-	}
-	self.ns, err = self.readNS(fields[1])
+	pid := os.Getpid()
+	var err error
+	self.ns, err = self.readNS(strconv.Itoa(pid))
 	if err != nil {
 		logger.Error("record_ns", nil, err)
 	}
