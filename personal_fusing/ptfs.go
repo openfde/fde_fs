@@ -375,6 +375,7 @@ func MountPtfs() error {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
 			tr := hosts[index].Mount("", args)
+			logger.Info("mount_volume", fmt.Sprintln(args, fs.root))
 			if !tr {
 				logger.Error("mount_ptfsfuse_error", tr, nil)
 				c <- struct{}{}

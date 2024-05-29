@@ -271,6 +271,9 @@ func UmountAllVolumes() error {
 	syscall.Setreuid(-1, 0)
 	syscall.Unmount(openfde, 0)
 	for _, volume := range entries {
+		if !volume.IsDir() {
+			continue
+		}
 		path := PathPrefix + volume.Name()
 		err = syscall.Unmount(path, 0)
 		if err != nil {
@@ -367,9 +370,7 @@ func main() {
 		go func(args []string, fs Ptfs, c chan struct{}) {
 			defer wg.Done()
 			hosts[index] = fuse.NewFileSystemHost(&fs)
-			if debug {
-				fmt.Println(args, fs.root)
-			}
+			logger.Info("mount_volume", fmt.Sprintln(args, fs.root))
 			tr := hosts[index].Mount("", args)
 			if !tr {
 				logger.Error("mount_fuse_error", tr, nil)
