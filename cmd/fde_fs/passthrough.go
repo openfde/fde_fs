@@ -73,8 +73,8 @@ func (self *Ptfs) Access(path string, mask uint32) int {
 	rpath := path
 	if self.isHostNS() {
 		//accessing openfde
-		if strings.Contains(self.original, Openfde) {
-			dirList := strings.Split(self.original, Openfde)
+		if strings.Contains(self.original, LocalOpenfde) {
+			dirList := strings.Split(self.original, LocalOpenfde)
 			if len(dirList) >= 2 {
 				rpath = dirList[0]
 			}
@@ -118,15 +118,15 @@ func (self *Ptfs) Mknod(path string, mode uint32, dev uint64) (errc int) {
 }
 
 func (self *Ptfs) isOpenfdeFileSystem() bool {
-	if strings.Contains(self.original, Openfde) {
-		dirList := strings.Split(self.original, Openfde)
+	if strings.Contains(self.original, LocalOpenfde) {
+		dirList := strings.Split(self.original, LocalOpenfde)
 		return len(dirList) >= 2
 	}
 	return false
 }
 
 func (self *Ptfs) haveWPerm() bool {
-	dirList := strings.Split(self.original, Openfde)
+	dirList := strings.Split(self.original, LocalOpenfde)
 	home := dirList[0]
 	var st syscall.Stat_t
 	syscall.Stat(home, &st)
@@ -152,8 +152,8 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 		var dstSt fuse.Stat_t
 		//get the uid of the parent dir of the target
 		if filepath.Dir(filepath.Join(self.root, path)) == self.root {
-			//stat the Download to get the uid and gid as the
-			syscall.Stat(filepath.Join(self.root, "Download"), &st)
+			//stat the Ringtones to get the uid and gid as the
+			syscall.Stat(filepath.Join(self.root, "Ringtones"), &st)
 		} else {
 			syscall.Stat(filepath.Dir(filepath.Join(self.root, path)), &st)
 		}
@@ -243,8 +243,8 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 		var dstSt fuse.Stat_t
 		//get the uid of the parent dir of the target
 		if filepath.Dir(filepath.Join(self.root, path)) == self.root {
-			//stat the Download to get the uid and gid as the
-			syscall.Stat(filepath.Join(self.root, "Download"), &st)
+			//stat the Ringtones to get the uid and gid as the
+			syscall.Stat(filepath.Join(self.root, "Ringtones"), &st)
 		} else {
 			syscall.Stat(filepath.Dir(filepath.Join(self.root, path)), &st)
 		}
@@ -261,8 +261,8 @@ func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	var rpath string
 	if self.isHostNS() {
 		//accessing openfde
-		if strings.Contains(self.original, Openfde) {
-			dirList := strings.Split(self.original, Openfde)
+		if strings.Contains(self.original, LocalOpenfde) {
+			dirList := strings.Split(self.original, LocalOpenfde)
 			if len(dirList) >= 2 {
 				//the permission of the files, which included by openfde, uses the permission of home selfs.
 				rpath = dirList[0]
@@ -360,8 +360,8 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 	rpath := path
 	if self.isHostNS() {
 		//accessing openfde
-		if strings.Contains(self.original, Openfde) {
-			dirList := strings.Split(self.original, Openfde)
+		if strings.Contains(self.original, LocalOpenfde) {
+			dirList := strings.Split(self.original, LocalOpenfde)
 			if len(dirList) >= 2 {
 				rpath = dirList[0]
 			}
