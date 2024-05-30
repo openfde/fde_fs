@@ -1,9 +1,12 @@
-ver=`git log --pretty=format:"%h" -1`
-tag=`git describe --abbrev=0 --tags`
-date1=`date +%F_%T`
+all: build
 build:
-	go build -ldflags "-X main._version_=$(ver) -X main._tag_=$(tag) -X main._date_=$(date1)"
+	$(MAKE) -C cmd/fde_fs
+	$(MAKE) -C cmd/personal_fusing
+
 install:
-	sudo chown root:root fde_fs
-	sudo chmod ug+s fde_fs
-	sudo cp -a fde_fs /usr/bin/
+	sudo chown root:root cmd/fde_fs/fde_fs 
+	sudo chmod ug+s cmd/fde_fs/fde_fs
+	sudo chown root:root cmd/personal_fusing/fde_ptfs
+	sudo chmod ug+s cmd/personal_fusing/fde_ptfs
+	sudo install cmd/fde_fs/fde_fs /usr/bin/fde_fs -m 755
+	sudo install cmd/personal_fusing/fde_ptfs /usr/bin/fde_ptfs -m 755

@@ -1,4 +1,4 @@
-package personal_fusing
+package main
 
 import (
 	"syscall"

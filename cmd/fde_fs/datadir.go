@@ -25,27 +25,27 @@ func chownRecursive(startPath, lastPath string, uid, gid int) error {
 	return nil
 }
 
-const Openfde = ".local/share/openfde"
+const LocalOpenfde = ".local/share/openfde"
 
-func MKDataDir() (data, openfde string, err error) {
+func MKDataDir() (media0, homeOpenfde string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
-	origin := filepath.Join(home, Openfde)
-	data = filepath.Join(origin, "/media/0")
-	_, err = os.Stat(data)
+	origin := filepath.Join(home, LocalOpenfde)
+	media0 = filepath.Join(origin, "/media/0")
+	_, err = os.Stat(media0)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(data, os.ModeDir+0751)
+			err = os.MkdirAll(media0, os.ModeDir+0751)
 			if err != nil {
-				logger.Error("mount_mkdir_for_user_datadir", data, err)
+				logger.Error("mount_mkdir_for_user_datadir", media0, err)
 				return
 			}
 			uid := os.Getuid()
 			gid := os.Getgid()
-			err = chownRecursive(home, "/"+Openfde, uid, gid)
+			err = chownRecursive(home, "/"+LocalOpenfde, uid, gid)
 			if err != nil {
 				logger.Error("fs_chown", "openfde", err)
 				return
@@ -58,25 +58,25 @@ func MKDataDir() (data, openfde string, err error) {
 		}
 	}
 
-	openfde = filepath.Join(home, "openfde")
-	_, err = os.Stat(openfde)
+	homeOpenfde = filepath.Join(home, "openfde")
+	_, err = os.Stat(homeOpenfde)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.Mkdir(openfde, os.ModeDir+0751)
+			err = os.Mkdir(homeOpenfde, os.ModeDir+0751)
 			if err != nil {
-				logger.Error("mount_mkdir_for_user_datadir", openfde, err)
+				logger.Error("mount_mkdir_for_user_datadir", homeOpenfde, err)
 				return
 			}
-			err = os.Chown(openfde, os.Getuid(), os.Getgid())
+			err = os.Chown(homeOpenfde, os.Getuid(), os.Getgid())
 			if err != nil {
-				logger.Error("mount_mkdir_for_user_home_datadir", openfde, err)
+				logger.Error("mount_mkdir_for_user_home_datadir", homeOpenfde, err)
 				return
 			}
 		} else {
-			//if the dir is just not umounted
-			err = syscall.Unmount(openfde, 0)
+			//if the dir is just not umounted ,then umount it
+			err = syscall.Unmount(homeOpenfde, 0)
 			if err != nil {
-				logger.Error("umount_volumes", openfde, err)
+				logger.Error("umount_volumes", homeOpenfde, err)
 				return
 			}
 
