@@ -148,6 +148,12 @@ func (self *Ptfs) Utimens(path string, tmsp1 []fuse.Timespec) (errc int) {
 func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint64) {
 	defer trace(path, flags, mode)(&errc, &fh)
 	defer setuidgid()()
+	var st syscall.Stat_t
+	var dstSt fuse.Stat_t
+	//get the uid of the parent dir of the target
+	syscall.Stat(self.root), &st)
+	copyFusestatFromGostat(&dstSt, &st)
+	defer syscall.Chown(filepath.Join(self.root, path), int(dstSt.Uid), int(dstSt.Gid))
 	return self.open(path, flags, mode)
 }
 
@@ -261,11 +267,8 @@ func main() {
 	ptfs := Ptfs{}
 	args := os.Args
 	if 3 <= len(args) && '-' != args[len(args)-2][0] && '-' != args[len(args)-1][0] {
-		fmt.Println((args[len(args)-2]))
-		fmt.Println(args)
 		ptfs.root, _ = filepath.Abs(args[len(args)-2])
 		args = append(args[:len(args)-2], args[len(args)-1])
-		fmt.Println(args)
 	}
 	_host = fuse.NewFileSystemHost(&ptfs)
 	_host.Mount("", args[1:])
