@@ -9,7 +9,26 @@ import (
 	"syscall"
 )
 
-const PathPrefix = ".local/share/openfde/media/0/"
+const Media0 = ".local/share/openfde/media/0/"
+
+func UmountPtfs() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error("mount_query_home_failed", os.Getuid(), err)
+		return err
+	}
+	androidDir := filepath.Join(home, Media0)
+	syscall.Setreuid(-1, 0)
+	for _, dir := range androidDirList {
+		logger.Info("umount_volumes", filepath.Join(androidDir, dir))
+		err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
+		if err != nil {
+			logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
+			return err
+		}
+	}
+	return nil
+}
 
 var homeDirNameMap map[string]string
 var androidDirList, linuxDirList []string
