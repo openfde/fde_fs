@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
-	"fde_fs/personal_fusing"
 	"flag"
 	"fmt"
 	"io/fs"
