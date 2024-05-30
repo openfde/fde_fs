@@ -151,7 +151,7 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 	var st syscall.Stat_t
 	var dstSt fuse.Stat_t
 	//get the uid of the parent dir of the target
-	syscall.Stat(self.root), &st)
+	syscall.Stat(self.root, &st)
 	copyFusestatFromGostat(&dstSt, &st)
 	defer syscall.Chown(filepath.Join(self.root, path), int(dstSt.Uid), int(dstSt.Gid))
 	return self.open(path, flags, mode)
