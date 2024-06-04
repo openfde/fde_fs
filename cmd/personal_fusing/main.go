@@ -75,6 +75,14 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 	defer trace(path, mode)(&errc)
 	defer setuidgid()()
 	path = filepath.Join(self.root, path)
+
+	var st syscall.Stat_t
+	var dstSt fuse.Stat_t
+	//get the uid of the parent dir of the target
+	syscall.Stat(self.root, &st)
+	copyFusestatFromGostat(&dstSt, &st)
+	defer syscall.Chown(filepath.Join(self.root, path), int(dstSt.Uid), int(dstSt.Gid))
+
 	return errno(syscall.Mkdir(path, mode))
 }
 
