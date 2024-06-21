@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 const Media0 = ".local/share/openfde/media/0/"
@@ -86,14 +88,58 @@ func mountFdePtfs(sourcePath, targetPath string) error {
 	return nil
 }
 
+func ExecuteWaydroidShell(command string) (string, error) {
+	cmd := exec.Command("waydroid", "shell")
+	cmd.Stdin = strings.NewReader(command)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+func queryPassThroughInWaydroid() bool {
+	command := "cat /proc/mounts |grep /mnt/pass_through"
+	output, err := ExecuteWaydroidShell(command)
+	if err != nil {
+		logger.Error("execute_waydroid_shell", nil, err)
+		return false
+	}
+	if len(output) > 0 {
+		return true
+	}
+	return false
+}
+
 func MountPtfs() error {
 	syscall.Umask(0)
+	err := syscall.Setreuid(0, 0)
+	if err != nil {
+		logger.Error("mount_setreuid_error", nil, err)
+		return err
+	}
+	passThroughChan := make(chan struct{})
+	go func() {
+
+		timeout := time.After(10 * time.Second) // Set a timeout of 10 seconds
+		for !queryPassThroughInWaydroid() {
+			select {
+			case <-timeout:
+				break // Stop the loop when timeout is reached
+			default:
+				time.Sleep(time.Second) // Add a delay before each query
+			}
+		}
+		passThroughChan <- struct{}{}
+	}()
+	select {
+	case <-passThroughChan:
+	}
 	rlinuxList, randroidList, err := getUserFolders()
 	if err != nil {
 		logger.Error("mount_dir_fusing", nil, err)
 		return err
 	}
-
 	var wg sync.WaitGroup
 	wg.Add(len(randroidList))
 	ch := make(chan struct{})
