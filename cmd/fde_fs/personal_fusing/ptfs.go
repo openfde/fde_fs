@@ -113,16 +113,23 @@ func queryPassThroughInWaydroid() bool {
 
 func MountPtfs() error {
 	syscall.Umask(0)
-	err := syscall.Setreuid(0, 0)
+
+	rlinuxList, randroidList, err := getUserFolders()
+	if err != nil {
+		logger.Error("mount_dir_fusing", nil, err)
+		return err
+	}
+
+	err = syscall.Setreuid(0, 0)
 	if err != nil {
 		logger.Error("mount_setreuid_error", nil, err)
 		return err
 	}
 	passThroughChan := make(chan struct{})
 	go func() {
-
 		timeout := time.After(10 * time.Second) // Set a timeout of 10 seconds
 		for !queryPassThroughInWaydroid() {
+			logger.Info("query_pass_through", "not mounted")
 			select {
 			case <-timeout:
 				break // Stop the loop when timeout is reached
@@ -135,10 +142,33 @@ func MountPtfs() error {
 	select {
 	case <-passThroughChan:
 	}
-	rlinuxList, randroidList, err := getUserFolders()
-	if err != nil {
-		logger.Error("mount_dir_fusing", nil, err)
-		return err
+	dirsExistChan := make(chan struct{})
+	go func() {
+		allExist := false
+		timeout := time.After(5 * time.Second) // Set a timeout of 10 seconds
+		for {
+			for _, dir := range randroidList {
+				if _, err := os.Stat(dir); os.IsNotExist(err) {
+					logger.Info("query_dir_exist_not", dir)
+					allExist = false
+				} else {
+					allExist = true
+				}
+			}
+			if allExist {
+				break
+			}
+			select {
+			case <-timeout:
+				break // Stop the loop when timeout is reached
+			default:
+				time.Sleep(time.Second)
+			}
+		}
+		dirsExistChan <- struct{}{}
+	}()
+	select {
+	case <-dirsExistChan:
 	}
 	var wg sync.WaitGroup
 	wg.Add(len(randroidList))
