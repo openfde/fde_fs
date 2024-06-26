@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -287,6 +288,50 @@ var _version_ = "v0.1"
 var _tag_ = "v0.1"
 var _date_ = "20231001"
 
+func getStatus() (string, error) {
+	if _, err := os.Stat("/usr/sbin/getstatus"); os.IsNotExist(err) {
+		logger.Info("ptfs_mount_get_status","getstatus is not exist")
+		return "", nil
+	}
+	cmd := exec.Command("getstatus")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+func setSoftModeDepend(status string) error {
+	if len(status) == 0 {
+		logger.Info("ptfs_mount_get_status","status is empty")
+		return nil 
+	}
+	lines := strings.Split(status, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "KySec status:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 3 {
+				status := fields[2]
+				if status == "enabled" {
+					cmd := exec.Command("setstatus", "softmode")
+					err := cmd.Run()
+					if err != nil {
+						logger.Error("ptfs_mount_set_status",nil, err)
+						return err
+					}
+					logger.Info("ptfs_mount_set_status","Status set to softmode")
+				} else {
+					logger.Info("ptfs_mount_set_softmode","already_softmode")
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
+
+
+
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount bool
 	flag.BoolVar(&mount, "m", false, "-m")
@@ -301,6 +346,14 @@ func main() {
 	switch {
 	case ptfsmount:
 		{
+			status, err := getStatus()
+			if err != nil {
+				logger.Error("ptfs_mount_get_status",nil, err)
+				return
+			}
+			if err := setSoftModeDepend(status); err != nil {
+				return
+			}
 			personal_fusing.MountPtfs()
 			return
 		}
