@@ -6,13 +6,15 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 )
 
+var LinuxUID int
+var LinuxGID int
+
 func setuidgid() func() {
 	euid := syscall.Geteuid()
 	if 0 == euid {
-		uid, gid, _ := fuse.Getcontext()
 		egid := syscall.Getegid()
-		syscall.Setregid(-1, int(gid))
-		syscall.Setreuid(-1, int(uid))
+		syscall.Setregid(-1, LinuxGID)
+		syscall.Setreuid(-1, LinuxUID)
 		return func() {
 			syscall.Setreuid(-1, int(euid))
 			syscall.Setregid(-1, int(egid))

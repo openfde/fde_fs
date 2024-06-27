@@ -290,7 +290,7 @@ var _date_ = "20231001"
 
 func getStatus() (string, error) {
 	if _, err := os.Stat("/usr/sbin/getstatus"); os.IsNotExist(err) {
-		logger.Info("ptfs_mount_get_status","getstatus is not exist")
+		logger.Info("ptfs_mount_get_status", "getstatus is not exist")
 		return "", nil
 	}
 	cmd := exec.Command("getstatus")
@@ -303,8 +303,8 @@ func getStatus() (string, error) {
 
 func setSoftModeDepend(status string) error {
 	if len(status) == 0 {
-		logger.Info("ptfs_mount_get_status","status is empty")
-		return nil 
+		logger.Info("ptfs_mount_get_status", "status is empty")
+		return nil
 	}
 	lines := strings.Split(status, "\n")
 	for _, line := range lines {
@@ -316,12 +316,12 @@ func setSoftModeDepend(status string) error {
 					cmd := exec.Command("setstatus", "softmode")
 					err := cmd.Run()
 					if err != nil {
-						logger.Error("ptfs_mount_set_status",nil, err)
+						logger.Error("ptfs_mount_set_status", nil, err)
 						return err
 					}
-					logger.Info("ptfs_mount_set_status","Status set to softmode")
+					logger.Info("ptfs_mount_set_status", "Status set to softmode")
 				} else {
-					logger.Info("ptfs_mount_set_softmode","already_softmode")
+					logger.Info("ptfs_mount_set_softmode", "already_softmode")
 				}
 				break
 			}
@@ -329,8 +329,6 @@ func setSoftModeDepend(status string) error {
 	}
 	return nil
 }
-
-
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount bool
@@ -348,7 +346,7 @@ func main() {
 		{
 			status, err := getStatus()
 			if err != nil {
-				logger.Error("ptfs_mount_get_status",nil, err)
+				logger.Error("ptfs_mount_get_status", nil, err)
 				return
 			}
 			if err := setSoftModeDepend(status); err != nil {
@@ -393,6 +391,8 @@ func main() {
 	if !mount {
 		return
 	}
+	LinuxUID = os.Getuid()
+	LinuxGID = os.Getgid()
 	//mount /HOME/.local/share/openfde on /HOME/openfde
 	dataOrigin, dataPoint, err := MKDataDir()
 	if err != nil {
