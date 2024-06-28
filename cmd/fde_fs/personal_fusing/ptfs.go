@@ -28,7 +28,6 @@ func UmountPtfs() error {
 		err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
 		if err != nil {
 			logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
-			return err
 		}
 	}
 	return nil
