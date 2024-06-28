@@ -352,6 +352,7 @@ func main() {
 			if err := setSoftModeDepend(status); err != nil {
 				return
 			}
+			personal_fusing.UmountPtfs()
 			personal_fusing.MountPtfs()
 			return
 		}

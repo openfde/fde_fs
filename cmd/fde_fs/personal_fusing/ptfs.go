@@ -2,6 +2,8 @@ package personal_fusing
 
 import (
 	"fde_fs/logger"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,8 +113,30 @@ func queryPassThroughInWaydroid() bool {
 	return false
 }
 
+var fslock sync.Mutex
+
+const ptfsQueryName = "fuse.fde_ptfs"
+
+func GetPtfs(ptfsCount int) (bool, int, error) {
+	fslock.Lock()
+	// Check if /proc/self/mounts contains "fde_ptfs" keyword
+	mounts, err := ioutil.ReadFile("/proc/self/mounts")
+	defer fslock.Unlock()
+	if err != nil {
+		logger.Error("read_mounts_file", nil, err)
+		return false, 0, nil
+	}
+	ptfsActualCount := strings.Count(string(mounts), ptfsQueryName)
+	if ptfsActualCount >= ptfsCount {
+		logger.Info("count_ptfs", "more than "+fmt.Sprint(ptfsCount))
+		return true, ptfsActualCount, nil
+	} else {
+		logger.Info("count_ptfs", "actualy is "+fmt.Sprint(strings.Count(string(mounts), ptfsQueryName)))
+		return false, ptfsActualCount, nil
+	}
+}
+
 func MountPtfs() error {
-	syscall.Umask(0)
 
 	rlinuxList, randroidList, err := getUserFolders()
 	if err != nil {
@@ -173,6 +197,20 @@ func MountPtfs() error {
 	var wg sync.WaitGroup
 	wg.Add(len(randroidList))
 	ch := make(chan struct{})
+
+	mounted, ptCount, err := GetPtfs(len(randroidList))
+	if err != nil {
+		logger.Error("get_ptfs_error", nil, err)
+		return err
+	}
+	if mounted {
+		//already mounted
+		return nil
+	} else {
+		if ptCount > 0 {
+			UmountPtfs() //umount first, in order to avoid only some(not all) dirs mounted
+		}
+	}
 
 	for i, _ := range randroidList {
 		go func(source, target string) {
