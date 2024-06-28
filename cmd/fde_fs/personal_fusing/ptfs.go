@@ -117,7 +117,21 @@ var fslock sync.Mutex
 
 const ptfsQueryName = "fuse.fde_ptfs"
 
-func GetPtfs(ptfsCount int) (bool, int, error) {
+func GetPtfs() (bool, error) {
+	_, randroidList, err := getUserFolders()
+	if err != nil {
+		logger.Error("get_ptfs_get_user_forlders", nil, err)
+		return false, err
+	}
+	mounted, _, err := getPtfs(len(randroidList))
+	if err != nil {
+		logger.Error("get_ptfs_query_proc", nil, err)
+		return false, err
+	}
+	return mounted, nil
+}
+
+func getPtfs(ptfsCount int) (bool, int, error) {
 	fslock.Lock()
 	// Check if /proc/self/mounts contains "fde_ptfs" keyword
 	mounts, err := ioutil.ReadFile("/proc/self/mounts")
@@ -198,7 +212,7 @@ func MountPtfs() error {
 	wg.Add(len(randroidList))
 	ch := make(chan struct{})
 
-	mounted, ptCount, err := GetPtfs(len(randroidList))
+	mounted, ptCount, err := getPtfs(len(randroidList))
 	if err != nil {
 		logger.Error("get_ptfs_error", nil, err)
 		return err
