@@ -331,7 +331,7 @@ func setSoftModeDepend(status string) error {
 }
 
 func main() {
-	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery bool
+	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode bool
 	flag.BoolVar(&mount, "m", false, "-m")
 	flag.BoolVar(&version, "v", false, "-v")
 	flag.BoolVar(&umount, "u", false, "-u")
@@ -340,9 +340,22 @@ func main() {
 	flag.BoolVar(&ptfsmount, "pm", false, "-pm")
 	flag.BoolVar(&ptfsumount, "pu", false, "-pu")
 	flag.BoolVar(&ptfsquery, "pq", false, "-pq")
+	flag.BoolVar(&softmode, "s", false, "-s")
 	flag.Parse()
 
 	switch {
+	case softmode:
+		{
+			status, err := getStatus()
+			if err != nil {
+				logger.Error("soft_mode_set", nil, err)
+				return
+			}
+			if err := setSoftModeDepend(status); err != nil {
+				return
+			}
+			return
+		}
 	case ptfsquery:
 		{
 			mounted, err := personal_fusing.GetPtfs()
