@@ -64,20 +64,43 @@ func getUserFolders() ([]string, []string, error) {
 	}
 	var realLinuxDirList = make([]string, len(linuxDirList))
 	var realAndroidList = make([]string, len(androidDirList))
-	_, err = os.Stat(filepath.Join(homeDir, linuxDirList[0]))
-	if err == nil { //en
-		for i, v := range linuxDirList {
-			realLinuxDirList[i] = filepath.Join(homeDir, v)
-			realAndroidList[i] = filepath.Join(homeDir, ".local/share/openfde/media/0", androidDirList[i])
+	existEnCount := 0
+	existZhCount := 0
+	//stat the count of home personal dir in en and zh
+	for _, v := range linuxDirList {
+		_, err = os.Stat(filepath.Join(homeDir, v))
+		if err == nil {
+			existEnCount++
 		}
-	} else { //zh
-		for i, v := range linuxDirList {
+		_, err = os.Stat(filepath.Join(homeDir, homeDirNameMap[v]))
+		if err == nil {
+			existZhCount++
+		}
+	}
+
+	for i, v := range linuxDirList {
+		if existEnCount <= existZhCount { //zh
 			realLinuxDirList[i] = filepath.Join(homeDir, homeDirNameMap[v])
-			realAndroidList[i] = filepath.Join(homeDir, ".local/share/openfde/media/0", androidDirList[i])
+		} else { //en
+			realLinuxDirList[i] = filepath.Join(homeDir, v)
+		}
+		realAndroidList[i] = filepath.Join(homeDir, ".local/share/openfde/media/0", androidDirList[i])
+		if _, err = os.Stat(realLinuxDirList[i]); err != nil {
+			if os.IsNotExist(err) {
+				err = os.Mkdir(realLinuxDirList[i], os.ModeDir+0755)
+				if err != nil {
+					logger.Error("mkdir_personal_dir", realLinuxDirList[i], err)
+					return nil, nil, err
+				}
+				err = os.Chown(realLinuxDirList[i], os.Getuid(), os.Getgid())
+				if err != nil {
+					logger.Error("chown_personal_dir", realLinuxDirList[i], err)
+					return nil, nil, err
+				}
+			}
 		}
 	}
 	return realLinuxDirList, realAndroidList, nil
-
 }
 
 func mountFdePtfs(sourcePath, targetPath string) error {
