@@ -44,6 +44,7 @@ func init() {
 	homeDirNameMap["Music"] = "音乐"
 	homeDirNameMap["Videos"] = "视频"
 	homeDirNameMap["Pictures"] = "图片"
+	homeDirNameMap["Desktop"] = "桌面"
 	linuxDirList = append(linuxDirList, "Documents")
 	linuxDirList = append(linuxDirList, "Downloads")
 	linuxDirList = append(linuxDirList, "Music")
