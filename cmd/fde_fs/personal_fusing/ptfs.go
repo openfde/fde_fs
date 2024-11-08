@@ -49,12 +49,14 @@ func init() {
 	linuxDirList = append(linuxDirList, "Music")
 	linuxDirList = append(linuxDirList, "Videos")
 	linuxDirList = append(linuxDirList, "Pictures")
+	linuxDirList = append(linuxDirList, "Desktop")
 
 	androidDirList = append(androidDirList, "Documents")
 	androidDirList = append(androidDirList, "Download")
 	androidDirList = append(androidDirList, "Music")
 	androidDirList = append(androidDirList, "Movies")
 	androidDirList = append(androidDirList, "Pictures")
+	androidDirList = append(androidDirList, "Desktop")
 }
 
 func getUserFolders() ([]string, []string, error) {

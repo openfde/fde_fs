@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"strconv"
+	"fde_fs/logger"
 
 	"github.com/winfsp/cgofuse/examples/shared"
 	"github.com/winfsp/cgofuse/fuse"
@@ -44,7 +46,8 @@ var (
 
 type Ptfs struct {
 	fuse.FileSystemBase
-	root string
+	ns       uint64
+	root     string
 }
 
 func (self *Ptfs) Init() {
@@ -53,6 +56,43 @@ func (self *Ptfs) Init() {
 	if nil == e {
 		self.root = "./"
 	}
+}
+
+func (self *Ptfs) isHostNS() bool {
+	_, _, pid := fuse.Getcontext()
+	ns, err := self.readNS(strconv.Itoa(pid))
+	if err != nil {
+		return false
+	}
+	if self.ns == 0 {
+		self.recordNameSpace()
+	}
+	return ns == self.ns
+}
+
+func (self *Ptfs) readNS(pid string) (nsid uint64, err error) {
+	file := "/proc/" + pid + "/ns/pid"
+	fd, err := os.Open(file)
+	if err != nil {
+		logger.Error("read_name_space_fs", nil, err)
+		return
+	}
+	defer fd.Close()
+	var stat syscall.Stat_t
+	syscall.Fstat(int(fd.Fd()), &stat)
+	nsid = stat.Ino
+	return
+}
+
+func (self *Ptfs) recordNameSpace() {
+	pid := os.Getpid()
+	var err error
+	self.ns, err = self.readNS(strconv.Itoa(pid))
+	if err != nil {
+		logger.Error("record_ns", nil, err)
+	}
+	return
+
 }
 
 func (self *Ptfs) Statfs(path string, stat *fuse.Statfs_t) (errc int) {
@@ -87,6 +127,9 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 }
 
 func (self *Ptfs) Unlink(path string) (errc int) {
+	if self.isHostNS() {
+		return -int(syscall.EACCES)
+	}
 	defer trace(path)(&errc)
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Unlink(path))
