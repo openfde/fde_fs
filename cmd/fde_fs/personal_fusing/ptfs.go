@@ -1,6 +1,7 @@
 package personal_fusing
 
 import (
+	"fde_fs/inotify"
 	"fde_fs/logger"
 	"fmt"
 	"io/ioutil"
@@ -254,6 +255,15 @@ func MountPtfs() error {
 	for i, _ := range randroidList {
 		go func(source, target string) {
 			defer wg.Done()
+			if strings.Contains(target, "Desktop") {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Error("goroutine_panic_recovered", r, nil)
+					}
+				}()
+				go inotify.WatchDesktop(source)
+			}
+
 			err := mountFdePtfs(source, target)
 			if err != nil {
 				logger.Error("mount_ptfsfuse_error", err, nil)
