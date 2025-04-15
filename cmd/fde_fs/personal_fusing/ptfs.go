@@ -1,6 +1,7 @@
 package personal_fusing
 
 import (
+	"context"
 	"fde_fs/inotify"
 	"fde_fs/logger"
 	"fmt"
@@ -251,6 +252,8 @@ func MountPtfs() error {
 			UmountPtfs() //umount first, in order to avoid only some(not all) dirs mounted
 		}
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	for i, _ := range randroidList {
 		go func(source, target string) {
@@ -261,7 +264,7 @@ func MountPtfs() error {
 						logger.Error("goroutine_panic_recovered", r, nil)
 					}
 				}()
-				go inotify.WatchDesktop(source)
+				go inotify.WatchDesktop(ctx, source)
 			}
 
 			err := mountFdePtfs(source, target)
