@@ -25,7 +25,7 @@ func chownRecursive(startPath, lastPath string, uid, gid int) error {
 	return nil
 }
 
-const LocalOpenfde = ".local/share/openfde"
+const LocalOpenfde = ".local/share/openfde14"
 
 func MKDataDir() (media0, homeOpenfde string, err error) {
 	home, err := os.UserHomeDir()

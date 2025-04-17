@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const Media0 = ".local/share/openfde/media/0/"
+const Media0 = ".local/share/openfde14/media/0/"
 
 func UmountPtfs() error {
 	home, err := os.UserHomeDir()
@@ -89,7 +89,7 @@ func getUserFolders() ([]string, []string, error) {
 		} else { //en
 			realLinuxDirList[i] = filepath.Join(homeDir, v)
 		}
-		realAndroidList[i] = filepath.Join(homeDir, ".local/share/openfde/media/0", androidDirList[i])
+		realAndroidList[i] = filepath.Join(homeDir, Media0, androidDirList[i])
 		if _, err = os.Stat(realLinuxDirList[i]); err != nil {
 			if os.IsNotExist(err) {
 				err = os.Mkdir(realLinuxDirList[i], os.ModeDir+0755)
