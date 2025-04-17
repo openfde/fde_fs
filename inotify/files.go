@@ -21,7 +21,7 @@ func watchDirectory(path string, addevents, delevents chan string) {
 	}
 	defer unix.Close(fd)
 
-	wd, err := unix.InotifyAddWatch(fd, path, unix.IN_CREATE|unix.IN_DELETE)
+	wd, err := unix.InotifyAddWatch(fd, path, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_DELETE|unix.IN_MOVED_FROM)
 	if err != nil {
 		log.Fatalf("Failed to add inotify watch: %v", err)
 	}
@@ -40,11 +40,10 @@ func watchDirectory(path string, addevents, delevents chan string) {
 			name := strings.TrimRight(string(buf[offset+unix.SizeofInotifyEvent:offset+unix.SizeofInotifyEvent+event.Len]), "\x00")
 			fullPath := filepath.Join(path, name)
 
-			if event.Mask&unix.IN_CREATE != 0 {
-
+			if event.Mask&unix.IN_CREATE != 0 || event.Mask&unix.IN_MOVED_TO != 0 {
 				message := fmt.Sprintf("%s", fullPath)
 				addevents <- message
-			} else if event.Mask&unix.IN_DELETE != 0 {
+			} else if event.Mask&unix.IN_MOVED_FROM != 0 || event.Mask&unix.IN_DELETE != 0 {
 				message := fmt.Sprintf("%s", fullPath)
 				delevents <- message
 			}
