@@ -65,12 +65,14 @@ type InotifyEvent struct {
 	OpCode   Op // "add" or "delete"
 }
 
-func WatchDesktop(ctx context.Context, desktopDir string) {
+const ApplicationType = "application"
+const DesktopType = "desktop"
+
+func WatchDir(ctx context.Context, dir, notifyType string) {
 
 	addevents := make(chan string)
 	delevents := make(chan string)
-	go watchDirectory(desktopDir, addevents, delevents)
-
+	go watchDirectory(dir, addevents, delevents)
 	for {
 		select {
 		case event := <-addevents:
@@ -84,7 +86,8 @@ func WatchDesktop(ctx context.Context, desktopDir string) {
 					logger.Error("json_marshal_error", event, err)
 					continue
 				}
-				cmd := exec.Command("waydroid", "notify", string(encode))
+
+				cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
 				if err := cmd.Run(); err != nil {
 					logger.Error("command_execution_error", string(encode), err)
 					continue
@@ -102,7 +105,7 @@ func WatchDesktop(ctx context.Context, desktopDir string) {
 					logger.Error("json_marshal_error", event, err)
 					continue
 				}
-				cmd := exec.Command("waydroid", "notify", string(encode))
+				cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
 				if err := cmd.Run(); err != nil {
 					logger.Error("command_execution_error", string(encode), err)
 					continue

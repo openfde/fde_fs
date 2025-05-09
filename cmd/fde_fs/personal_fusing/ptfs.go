@@ -177,6 +177,8 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 	}
 }
 
+const applicationsDir = "/usr/share/applications"
+
 func MountPtfs() error {
 
 	rlinuxList, randroidList, err := getUserFolders()
@@ -255,6 +257,8 @@ func MountPtfs() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	go inotify.WatchDir(ctx, applicationsDir, inotify.ApplicationType)
+
 	for i, _ := range randroidList {
 		go func(source, target string) {
 			defer wg.Done()
@@ -264,7 +268,7 @@ func MountPtfs() error {
 						logger.Error("goroutine_panic_recovered", r, nil)
 					}
 				}()
-				go inotify.WatchDesktop(ctx, source)
+				go inotify.WatchDir(ctx, source, inotify.DesktopType)
 			}
 
 			err := mountFdePtfs(source, target)
