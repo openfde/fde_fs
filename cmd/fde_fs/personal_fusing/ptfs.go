@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const Media0 = ".local/share/openfde/media/0/"
+const Media0 = ".local/share/openfde14/media/0/"
 
 func UmountPtfs() error {
 	home, err := os.UserHomeDir()
@@ -89,7 +89,7 @@ func getUserFolders() ([]string, []string, error) {
 		} else { //en
 			realLinuxDirList[i] = filepath.Join(homeDir, v)
 		}
-		realAndroidList[i] = filepath.Join(homeDir, ".local/share/openfde/media/0", androidDirList[i])
+		realAndroidList[i] = filepath.Join(homeDir, Media0, androidDirList[i])
 		if _, err = os.Stat(realLinuxDirList[i]); err != nil {
 			if os.IsNotExist(err) {
 				err = os.Mkdir(realLinuxDirList[i], os.ModeDir+0755)
@@ -177,6 +177,8 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 	}
 }
 
+const applicationsDir = "/usr/share/applications"
+
 func MountPtfs() error {
 
 	rlinuxList, randroidList, err := getUserFolders()
@@ -255,6 +257,8 @@ func MountPtfs() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	go inotify.WatchDir(ctx, applicationsDir, inotify.ApplicationType)
+
 	for i, _ := range randroidList {
 		go func(source, target string) {
 			defer wg.Done()
@@ -264,7 +268,7 @@ func MountPtfs() error {
 						logger.Error("goroutine_panic_recovered", r, nil)
 					}
 				}()
-				go inotify.WatchDesktop(ctx, source)
+				go inotify.WatchDir(ctx, source, inotify.DesktopType)
 			}
 
 			err := mountFdePtfs(source, target)
