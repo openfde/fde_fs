@@ -331,20 +331,31 @@ func setSoftModeDepend(status string) error {
 }
 
 func main() {
-	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode bool
-	flag.BoolVar(&mount, "m", false, "-m")
-	flag.BoolVar(&version, "v", false, "-v")
-	flag.BoolVar(&umount, "u", false, "-u")
-	flag.BoolVar(&help, "h", false, "-h")
-	flag.BoolVar(&debug, "d", false, "-d")
-	flag.BoolVar(&ptfsmount, "pm", false, "-pm")
-	flag.BoolVar(&ptfsumount, "pu", false, "-pu")
-	flag.BoolVar(&ptfsquery, "pq", false, "-pq")
-	flag.BoolVar(&softmode, "s", false, "-s")
-	flag.Parse()
+	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite bool
+	flag.BoolVar(&mount, "m", false, "mount volumes")
+	flag.BoolVar(&version, "v", false, "version")
+	flag.BoolVar(&umount, "u", false, "umount volumes")
+	flag.BoolVar(&help, "h", false, "help")
+	flag.BoolVar(&debug, "d", false, "debug")
+	flag.BoolVar(&ptfsmount, "pm", false, "personal fusing mount")
+	flag.BoolVar(&ptfsumount, "pu", false, "personal fusing umount")
+	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
+	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
+	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
 
 	switch {
-	case softmode:
+		case pwrite:
+		{
+			cmd := exec.Command("sysctl", "-p")
+			err := cmd.Run()
+			if err != nil {
+			       logger.Error("sysctl_p_failed", nil, err)
+			       return
+			}
+			logger.Info("sysctl_p_executed", "sysctl -p command executed successfully")
+			return
+		}
+		case softmode:
 		{
 			status, err := getStatus()
 			if err != nil {
