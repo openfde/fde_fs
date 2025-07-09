@@ -342,6 +342,7 @@ func main() {
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
 	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
+	flag.Parse()
 
 	switch {
 		case pwrite:
