@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const Media0 = ".local/share/openfde14/media/0/"
+const Media0 = ".local/share/openfde/media/0/"
 
 func UmountPtfs() error {
 	home, err := os.UserHomeDir()
