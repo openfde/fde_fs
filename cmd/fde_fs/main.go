@@ -330,8 +330,11 @@ func setSoftModeDepend(status string) error {
 	return nil
 }
 
+const propfile = "/var/lib/waydroid/waydroid_base.prop"
+
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite bool
+	var prop_protocol string
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
 	flag.BoolVar(&umount, "u", false, "umount volumes")
@@ -342,21 +345,50 @@ func main() {
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
 	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
+	flag.StringVar(&prop_protocol, "prop_protocol", "", "dispaly protocol for hwcomposer")
 	flag.Parse()
 
+	if len(prop_protocol) > 0 {
+		cmd := exec.Command("sed", "-i", "/ro.hardware.hwcomposer/d", propfile)
+		err := cmd.Run()
+		if err != nil {
+			logger.Error("sed_delete_hwcomposer", nil, err)
+		}
+		var newProp string
+		if prop_protocol == "wayland" {
+			newProp = "ro.hardware.hwcomposer=waydroid\n"
+		} else {
+			newProp = "ro.hardware.hwcomposer=x11\n"
+		}
+
+		file, err := os.OpenFile(propfile, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			logger.Error("open_waydroid_prop", nil, err)
+			os.Exit(1)
+		} else {
+			defer file.Close()
+			_, err = file.WriteString(newProp)
+			if err != nil {
+				logger.Error("write_hwcomposer_x11", nil, err)
+				os.Exit(1)
+			}
+		}
+		os.Exit(0)
+	}
+
 	switch {
-		case pwrite:
+	case pwrite:
 		{
 			cmd := exec.Command("sysctl", "-p")
 			err := cmd.Run()
 			if err != nil {
-			       logger.Error("sysctl_p_failed", nil, err)
-			       return
+				logger.Error("sysctl_p_failed", nil, err)
+				return
 			}
 			logger.Info("sysctl_p_executed", "sysctl -p command executed successfully")
 			return
 		}
-		case softmode:
+	case softmode:
 		{
 			status, err := getStatus()
 			if err != nil {
