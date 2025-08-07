@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
 	"flag"
@@ -13,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"errors"
 	"sync"
 	"syscall"
 	"time"
@@ -332,10 +332,11 @@ func setSoftModeDepend(status string) error {
 }
 
 const propfile = "/var/lib/waydroid/waydroid_base.prop"
-var aospVersion string 
+
+var aospVersion string
 var LocalOpenfde string
 
-func readAospVersion() () {
+func readAospVersion() {
 	// Mount /usr/share/waydroid-extra/images/vendor.img to /tmp
 	vendorImgPath := "/usr/share/waydroid-extra/images/vendor.img"
 	tmpMountPoint := "/tmp/vendor_mount"
@@ -396,11 +397,23 @@ func main() {
 	flag.StringVar(&prop_protocol, "prop_protocol", "", "dispaly protocol for hwcomposer")
 	flag.Parse()
 
+	if version {
+		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
+		return
+	}
+	LinuxUID = os.Getuid()
+	LinuxGID = os.Getgid()
+	err := syscall.Setreuid(0, 0)
+	if err != nil {
+		logger.Error("setreuid_error", nil, err)
+		return
+	}
 	if len(prop_protocol) > 0 {
 		cmd := exec.Command("sed", "-i", "/ro.hardware.hwcomposer/d", propfile)
 		err := cmd.Run()
 		if err != nil {
 			logger.Error("sed_delete_hwcomposer", nil, err)
+			os.Exit(1)
 		}
 		var newProp string
 		if prop_protocol == "wayland" {
@@ -423,29 +436,17 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	if version {
-		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
-		return
-	}
-	LinuxUID = os.Getuid()
-	LinuxGID = os.Getgid()
-	err := syscall.Setreuid(0, 0)
-	if err != nil {
-		logger.Error("setreuid_error", nil, err)
-		return 
-	}
 	readAospVersion()
 
-	if len(aospVersion) == 0{
+	if len(aospVersion) == 0 {
 		logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
 		os.Exit(1)
 	}
 	if aospVersion == "11" {
 		aospVersion = ""
 	}
-	LocalOpenfde = personal_fusing.LocalShareOpenfde+aospVersion
-	_= syscall.Setreuid(LinuxUID, 0)
-
+	LocalOpenfde = personal_fusing.LocalShareOpenfde + aospVersion
+	_ = syscall.Setreuid(LinuxUID, 0)
 
 	switch {
 	case pwrite:
