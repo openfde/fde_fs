@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
 	"os"
 	"path/filepath"
@@ -25,15 +26,15 @@ func chownRecursive(startPath, lastPath string, uid, gid int) error {
 	return nil
 }
 
-const LocalOpenfde = ".local/share/openfde14"
-
-func MKDataDir() (media0, homeOpenfde string, err error) {
+func MKDataDir(aospVer string) (media0, homeOpenfde string, err error) {
+	localShareOpenfde := personal_fusing.LocalShareOpenfde + aospVer
+	logger.Info("print_local_openfde", personal_fusing.LocalShareOpenfde)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
-	origin := filepath.Join(home, LocalOpenfde)
+	origin := filepath.Join(home, localShareOpenfde)
 	media0 = filepath.Join(origin, "/media/0")
 	_, err = os.Stat(media0)
 	if err != nil {
@@ -45,7 +46,7 @@ func MKDataDir() (media0, homeOpenfde string, err error) {
 			}
 			uid := os.Getuid()
 			gid := os.Getgid()
-			err = chownRecursive(home, "/"+LocalOpenfde, uid, gid)
+			err = chownRecursive(home, "/"+localShareOpenfde, uid, gid)
 			if err != nil {
 				logger.Error("fs_chown", "openfde", err)
 				return

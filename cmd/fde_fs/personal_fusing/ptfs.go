@@ -15,15 +15,18 @@ import (
 	"time"
 )
 
-const Media0 = ".local/share/openfde14/media/0/"
+const Media0 = "/media/0/"
+const LocalShareOpenfde = ".local/share/openfde"
 
-func UmountPtfs() error {
+func UmountPtfs(aospVer string) error {
+	localShareOpenfde := LocalShareOpenfde + aospVer
+	localMedia0 := filepath.Join(localShareOpenfde, Media0)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return err
 	}
-	androidDir := filepath.Join(home, Media0)
+	androidDir := filepath.Join(home, filepath.Join(localMedia0))
 	syscall.Setreuid(-1, 0)
 	for _, dir := range androidDirList {
 		logger.Info("umount_volumes", filepath.Join(androidDir, dir))
@@ -62,7 +65,8 @@ func init() {
 	androidDirList = append(androidDirList, "Desktop")
 }
 
-func getUserFolders() ([]string, []string, error) {
+func getUserFolders(aospVer string) ([]string, []string, error) {
+	localMedia0 := filepath.Join(LocalShareOpenfde+aospVer, Media0)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, nil, err
@@ -89,7 +93,7 @@ func getUserFolders() ([]string, []string, error) {
 		} else { //en
 			realLinuxDirList[i] = filepath.Join(homeDir, v)
 		}
-		realAndroidList[i] = filepath.Join(homeDir, Media0, androidDirList[i])
+		realAndroidList[i] = filepath.Join(homeDir, localMedia0, androidDirList[i])
 		if _, err = os.Stat(realLinuxDirList[i]); err != nil {
 			if os.IsNotExist(err) {
 				err = os.Mkdir(realLinuxDirList[i], os.ModeDir+0755)
@@ -144,8 +148,8 @@ var fslock sync.Mutex
 
 const ptfsQueryName = "fuse.fde_ptfs"
 
-func GetPtfs() (bool, error) {
-	_, randroidList, err := getUserFolders()
+func GetPtfs(aospVer string) (bool, error) {
+	_, randroidList, err := getUserFolders(aospVer)
 	if err != nil {
 		logger.Error("get_ptfs_get_user_forlders", nil, err)
 		return false, err
@@ -179,9 +183,9 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 
 const applicationsDir = "/usr/share/applications"
 
-func MountPtfs() error {
+func MountPtfs(aospVer string) error {
 
-	rlinuxList, randroidList, err := getUserFolders()
+	rlinuxList, randroidList, err := getUserFolders(aospVer)
 	if err != nil {
 		logger.Error("mount_dir_fusing", nil, err)
 		return err
@@ -251,7 +255,7 @@ func MountPtfs() error {
 		return nil
 	} else {
 		if ptCount > 0 {
-			UmountPtfs() //umount first, in order to avoid only some(not all) dirs mounted
+			UmountPtfs(aospVer) //umount first, in order to avoid only some(not all) dirs mounted
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())

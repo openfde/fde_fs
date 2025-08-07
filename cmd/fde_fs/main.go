@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"errors"
 	"sync"
 	"syscall"
 	"time"
@@ -331,6 +332,53 @@ func setSoftModeDepend(status string) error {
 }
 
 const propfile = "/var/lib/waydroid/waydroid_base.prop"
+var aospVersion string 
+var LocalOpenfde string
+
+func readAospVersion() () {
+	// Mount /usr/share/waydroid-extra/images/vendor.img to /tmp
+	vendorImgPath := "/usr/share/waydroid-extra/images/vendor.img"
+	tmpMountPoint := "/tmp/vendor_mount"
+	var err error
+	if _, err = os.Stat(vendorImgPath); err == nil {
+		// Create mount point if it doesn't exist
+		if err = os.MkdirAll(tmpMountPoint, 0755); err != nil {
+			logger.Error("mkdir_vendor_mount", tmpMountPoint, err)
+			return
+		} else {
+			// Mount vendor.img
+			cmd := exec.Command("mount", "-o", "loop,ro", vendorImgPath, tmpMountPoint)
+			if err = cmd.Run(); err != nil {
+				logger.Error("mount_vendor_img", vendorImgPath, err)
+				return
+			}
+			defer func() {
+				// Unmount the vendor.img
+				umountCmd := exec.Command("umount", tmpMountPoint)
+				if umountErr := umountCmd.Run(); umountErr != nil {
+					logger.Error("umount_vendor_img", tmpMountPoint, umountErr)
+				}
+			}()
+			// Read ro.vendor.build.version.release_or_codename from build.prop
+			buildPropPath := filepath.Join(tmpMountPoint, "build.prop")
+			var content []byte
+			if content, err = ioutil.ReadFile(buildPropPath); err == nil {
+				lines := strings.Split(string(content), "\n")
+				for _, line := range lines {
+					if strings.HasPrefix(line, "ro.vendor.build.version.release_or_codename=") {
+						aospVersion = strings.TrimPrefix(line, "ro.vendor.build.version.release_or_codename=")
+						logger.Info("vendor_build_version", aospVersion)
+						break
+					}
+				}
+			} else {
+				logger.Error("read_build_prop", buildPropPath, err)
+				return
+			}
+		}
+	}
+	return
+}
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite bool
@@ -375,6 +423,29 @@ func main() {
 		}
 		os.Exit(0)
 	}
+	if version {
+		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
+		return
+	}
+	LinuxUID = os.Getuid()
+	LinuxGID = os.Getgid()
+	err := syscall.Setreuid(0, 0)
+	if err != nil {
+		logger.Error("setreuid_error", nil, err)
+		return 
+	}
+	readAospVersion()
+
+	if len(aospVersion) == 0{
+		logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
+		os.Exit(1)
+	}
+	if aospVersion == "11" {
+		aospVersion = ""
+	}
+	LocalOpenfde = personal_fusing.LocalShareOpenfde+aospVersion
+	_= syscall.Setreuid(LinuxUID, 0)
+
 
 	switch {
 	case pwrite:
@@ -402,7 +473,7 @@ func main() {
 		}
 	case ptfsquery:
 		{
-			mounted, err := personal_fusing.GetPtfs()
+			mounted, err := personal_fusing.GetPtfs(aospVersion)
 			if err != nil {
 				os.Exit(1)
 			}
@@ -419,12 +490,12 @@ func main() {
 			if err := setSoftModeDepend(status); err != nil {
 				return
 			}
-			personal_fusing.MountPtfs()
+			personal_fusing.MountPtfs(aospVersion)
 			return
 		}
 	case ptfsumount:
 		{
-			personal_fusing.UmountPtfs()
+			personal_fusing.UmountPtfs(aospVersion)
 			return
 		}
 	case help:
@@ -458,10 +529,9 @@ func main() {
 	if !mount {
 		return
 	}
-	LinuxUID = os.Getuid()
-	LinuxGID = os.Getgid()
+
 	//mount /HOME/.local/share/openfde on /HOME/openfde
-	dataOrigin, dataPoint, err := MKDataDir()
+	dataOrigin, dataPoint, err := MKDataDir(aospVersion)
 	if err != nil {
 		os.Exit(1)
 	}
