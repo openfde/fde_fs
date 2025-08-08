@@ -337,10 +337,28 @@ var aospVersion string
 var LocalOpenfde string
 
 func readAospVersion() {
+	const codeKey = "ro.vendor.build.version.release_or_codename="
 	// Mount /usr/share/waydroid-extra/images/vendor.img to /tmp
 	vendorImgPath := "/usr/share/waydroid-extra/images/vendor.img"
 	tmpMountPoint := "/tmp/vendor_mount"
+	buildpropPath := "/var/lib/waydroid/rootfs/vendor/build.prop"
 	var err error
+	if _, err = os.Stat(buildpropPath); err == nil {
+		// Read ro.vendor.build.version.release_or_codename from build.prop
+		content, err := ioutil.ReadFile(buildpropPath)
+		if err != nil {
+			logger.Error("read_build_prop", buildpropPath, err)
+			return
+		}
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, codeKey) {
+				aospVersion = strings.TrimPrefix(line, codeKey)
+				logger.Info("vendor_build_version", aospVersion)
+				return
+			}
+		}
+	}
 	if _, err = os.Stat(vendorImgPath); err == nil {
 		// Create mount point if it doesn't exist
 		if err = os.MkdirAll(tmpMountPoint, 0755); err != nil {
@@ -366,8 +384,8 @@ func readAospVersion() {
 			if content, err = ioutil.ReadFile(buildPropPath); err == nil {
 				lines := strings.Split(string(content), "\n")
 				for _, line := range lines {
-					if strings.HasPrefix(line, "ro.vendor.build.version.release_or_codename=") {
-						aospVersion = strings.TrimPrefix(line, "ro.vendor.build.version.release_or_codename=")
+					if strings.HasPrefix(line, codeKey) {
+						aospVersion = strings.TrimPrefix(line, codeKey)
 						logger.Info("vendor_build_version", aospVersion)
 						break
 					}
