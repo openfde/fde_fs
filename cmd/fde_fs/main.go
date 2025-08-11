@@ -400,7 +400,7 @@ func readAospVersion() {
 }
 
 func main() {
-	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite bool
+	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite, lograte bool
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
 	flag.BoolVar(&umount, "u", false, "umount volumes")
@@ -411,6 +411,7 @@ func main() {
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
 	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
+	flag.BoolVar(&lograte, "lograte", false, "log rate for /var/log/fde.log")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
@@ -435,6 +436,32 @@ func main() {
 	}
 
 	switch {
+	case lograte:
+		{
+			if _, err := os.Stat("/var/log/fde.log"); os.IsNotExist(err) {
+				logger.Error("lograte_file_not_exist", "/var/log/fde.log", err)
+				return
+			}
+			if _, err := os.Stat("/var/log/fde.log.1"); err == nil {
+				err := os.Remove("/var/log/fde.log.1")
+				if err != nil {
+					logger.Error("lograte_remove_old_log_failed", nil, err)
+					return
+				}
+			}
+			err := os.Rename("/var/log/fde.log", "/var/log/fde.log.1")
+			if err != nil {
+				logger.Error("lograte_rename_failed", nil, err)
+				return
+			}
+			file, err := os.OpenFile("/var/log/fde.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+			if err != nil {
+				logger.Error("lograte_create_new_log_failed", nil, err)
+				return
+			}
+			file.Close()
+			logger.Info("lograte_sed_executed", "sed command executed successfully")
+		}
 	case pwrite:
 		{
 			cmd := exec.Command("sysctl", "-p")
