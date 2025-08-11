@@ -401,7 +401,6 @@ func readAospVersion() {
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite bool
-	var prop_protocol string
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
 	flag.BoolVar(&umount, "u", false, "umount volumes")
@@ -412,59 +411,28 @@ func main() {
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
 	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
-	flag.StringVar(&prop_protocol, "prop_protocol", "", "dispaly protocol for hwcomposer")
 	flag.Parse()
 
-	if version {
-		fmt.Printf("Version: %s, tag: %s , date: %s \n", _version_, _tag_, _date_)
-		return
-	}
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
-	err := syscall.Setreuid(0, 0)
-	if err != nil {
-		logger.Error("setreuid_error", nil, err)
-		return
-	}
-	if len(prop_protocol) > 0 {
-		cmd := exec.Command("sed", "-i", "/ro.hardware.hwcomposer/d", propfile)
-		err := cmd.Run()
+
+	if ptfsquery || ptfsmount || ptfsumount || mount {
+		err := syscall.Setreuid(0, 0)
 		if err != nil {
-			logger.Error("sed_delete_hwcomposer", nil, err)
+			logger.Error("setreuid_error", nil, err)
+			return
+		}
+		readAospVersion()
+		if len(aospVersion) == 0 {
+			logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
 			os.Exit(1)
 		}
-		var newProp string
-		if prop_protocol == "wayland" {
-			newProp = "ro.hardware.hwcomposer=waydroid\n"
-		} else {
-			newProp = "ro.hardware.hwcomposer=x11\n"
+		if aospVersion == "11" {
+			aospVersion = ""
 		}
-
-		file, err := os.OpenFile(propfile, os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			logger.Error("open_waydroid_prop", nil, err)
-			os.Exit(1)
-		} else {
-			defer file.Close()
-			_, err = file.WriteString(newProp)
-			if err != nil {
-				logger.Error("write_hwcomposer_x11", nil, err)
-				os.Exit(1)
-			}
-		}
-		os.Exit(0)
+		LocalOpenfde = personal_fusing.LocalShareOpenfde + aospVersion
+		_ = syscall.Setreuid(LinuxUID, 0)
 	}
-	readAospVersion()
-
-	if len(aospVersion) == 0 {
-		logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
-		os.Exit(1)
-	}
-	if aospVersion == "11" {
-		aospVersion = ""
-	}
-	LocalOpenfde = personal_fusing.LocalShareOpenfde + aospVersion
-	_ = syscall.Setreuid(LinuxUID, 0)
 
 	switch {
 	case pwrite:
