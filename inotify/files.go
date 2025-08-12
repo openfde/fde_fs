@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func watchDirectory(path string, addevents, delevents chan string) {
+func watchDirectory(path, fileType string, addevents, delevents chan string) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
 		log.Fatalf("Failed to initialize inotify: %v", err)
@@ -39,6 +39,11 @@ func watchDirectory(path string, addevents, delevents chan string) {
 			event := (*unix.InotifyEvent)(unsafe.Pointer(&buf[offset]))
 			name := strings.TrimRight(string(buf[offset+unix.SizeofInotifyEvent:offset+unix.SizeofInotifyEvent+event.Len]), "\x00")
 			fullPath := filepath.Join(path, name)
+			if fileType != AnyFileType {
+				if !strings.HasSuffix(name, fileType) {
+					continue
+				}
+			}
 
 			if event.Mask&unix.IN_CREATE != 0 || event.Mask&unix.IN_MOVED_TO != 0 {
 				message := fmt.Sprintf("%s", fullPath)
@@ -68,11 +73,14 @@ type InotifyEvent struct {
 const ApplicationType = "application"
 const DesktopType = "desktop"
 
-func WatchDir(ctx context.Context, dir, notifyType string) {
+const DesktopFileType = ".desktop"
+const AnyFileType = "*"
+
+func WatchDir(ctx context.Context, dir, notifyType, fileType string) {
 
 	addevents := make(chan string)
 	delevents := make(chan string)
-	go watchDirectory(dir, addevents, delevents)
+	go watchDirectory(dir, fileType, addevents, delevents)
 	for {
 		select {
 		case event := <-addevents:
