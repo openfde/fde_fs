@@ -365,11 +365,17 @@ func readAospVersion() {
 			logger.Error("mkdir_vendor_mount", tmpMountPoint, err)
 			return
 		} else {
-			// Mount vendor.img
-			cmd := exec.Command("mount", "-o", "loop,ro", vendorImgPath, tmpMountPoint)
-			if err = cmd.Run(); err != nil {
-				logger.Error("mount_vendor_img", vendorImgPath, err)
-				return
+			// Check if already mounted
+			checkCmd := exec.Command("sh", "-c", fmt.Sprintf("cat /proc/mounts | grep -w %s", tmpMountPoint))
+			if output, err := checkCmd.Output(); err == nil && len(output) > 0 {
+				logger.Info("vendor_mount_already_exists", string(output))
+			} else {
+				// Mount vendor.img
+				cmd := exec.Command("mount", "-o", "loop,ro", vendorImgPath, tmpMountPoint)
+				if err = cmd.Run(); err != nil {
+					logger.Error("mount_vendor_img", vendorImgPath, err)
+					return
+				}
 			}
 			defer func() {
 				// Unmount the vendor.img
@@ -399,7 +405,7 @@ func readAospVersion() {
 	return
 }
 
-func lograteFDE(){
+func lograteFDE() {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask) // 恢复原umask
 	if _, err := os.Stat("/var/log/fde.log"); os.IsNotExist(err) {
@@ -425,7 +431,7 @@ func lograteFDE(){
 	}
 	file.Close()
 	logger.Info("lograte_sed_executed", "sed command executed successfully")
-	return 
+	return
 }
 
 func main() {
@@ -468,7 +474,7 @@ func main() {
 	case lograte:
 		{
 			lograteFDE()
-			return 
+			return
 		}
 	case pwrite:
 		{
