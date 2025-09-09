@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fde_fs/logger"
 	"os/exec"
 	"strings"
-	"fde_fs/logger"
 )
 
 type NavigateionMode string
@@ -23,11 +23,16 @@ func readMode() string {
 }
 
 func setMode(mode NavigateionMode) error {
-	logger.Info("set_mode",mode)
-	cmd := exec.Command("waydroid", "shell", "settings", "put", "secure", "navigation_mode", string(mode))
+	logger.Info("set_mode", mode)
+	var cmd *exec.Cmd
+	if mode == Navigation3Btn {
+		cmd = exec.Command("waydroid", "shell", "cmd overlay enable-exclusive  com.android.internal.systemui.navbar.threebutton")
+	} else if mode == NavigationGesture {
+		cmd = exec.Command("waydroid", "shell", "cmd overlay enable-exclusive  com.android.internal.systemui.navbar.gestural_extra_wide_back")
+	}
 	err := cmd.Run()
 	if err != nil {
-		logger.Error("set_mode_filed",mode,err)
+		logger.Error("set_mode_filed", mode, err)
 		return err
 	}
 	return nil
