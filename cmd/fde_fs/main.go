@@ -244,6 +244,9 @@ func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAn
 	for _, v := range files {
 		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/", v.Name()))
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			logger.Error("read_volumes", name, err)
 			return nil, err
 		}
@@ -377,7 +380,7 @@ func main() {
 	switch {
 	case setNavigationMode:
 		{
-			setMode(navi_mode)
+			setMode(NavigateionMode(navi_mode))
 			return
 		}
 	case createlog:
