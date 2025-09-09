@@ -3,6 +3,7 @@ package main
 import (
 	"os/exec"
 	"strings"
+	"fde_fs/logger"
 )
 
 type NavigateionMode string
@@ -22,9 +23,11 @@ func readMode() string {
 }
 
 func setMode(mode NavigateionMode) error {
+	logger.Info("set_mode",mode)
 	cmd := exec.Command("waydroid", "shell", "settings", "put", "secure", "navigation_mode", string(mode))
 	err := cmd.Run()
 	if err != nil {
+		logger.Error("set_mode_filed",mode,err)
 		return err
 	}
 	return nil
