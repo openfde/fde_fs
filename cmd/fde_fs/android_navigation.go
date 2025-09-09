@@ -26,9 +26,9 @@ func setMode(mode NavigateionMode) error {
 	logger.Info("set_mode", mode)
 	var cmd *exec.Cmd
 	if mode == Navigation3Btn {
-		cmd = exec.Command("waydroid", "shell", "cmd overlay enable-exclusive  com.android.internal.systemui.navbar.threebutton")
+		cmd = exec.Command("waydroid", "shell", "cmd", "overlay", "enable-exclusive", "com.android.internal.systemui.navbar.threebutton")
 	} else if mode == NavigationGesture {
-		cmd = exec.Command("waydroid", "shell", "cmd overlay enable-exclusive  com.android.internal.systemui.navbar.gestural_extra_wide_back")
+		cmd = exec.Command("waydroid", "shell", "cmd", "overlay", "enable-exclusive", "com.android.internal.systemui.navbar.gestural_extra_wide_back")
 	}
 	err := cmd.Run()
 	if err != nil {
