@@ -9,8 +9,8 @@ import (
 type NavigateionMode string
 
 const (
-	NavigationGesture NavigateionMode = "0"
-	Navigation3Btn    NavigateionMode = "2"
+	NavigationGesture NavigateionMode = "2"
+	Navigation3Btn    NavigateionMode = "0"
 )
 
 func readMode() string {
