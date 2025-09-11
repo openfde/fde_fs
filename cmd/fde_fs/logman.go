@@ -17,7 +17,7 @@ func createLOG(){
 }
 
 
-func lograteFDE() {
+func logrotateFDE() {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask) // 恢复原umask
 	if _, err := os.Stat("/var/log/fde.log"); os.IsNotExist(err) {

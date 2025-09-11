@@ -384,9 +384,9 @@ func main() {
 	}
 
 	switch {
-	case lograte:
+	case logrotate:
 		{
-			lograteFDE()
+			logrotateFDE()
 			return
 		}
 	case pwrite:
