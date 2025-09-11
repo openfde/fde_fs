@@ -341,7 +341,7 @@ const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		lograte, setNavigationMode bool
+		logrotate, setNavigationMode bool
 	var navi_mode string
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
@@ -353,7 +353,7 @@ func main() {
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
 	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
-	flag.BoolVar(&lograte, "lograte", false, "log rate for /var/log/fde.log")
+	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
 	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(0) or 3btn(2)")
 	flag.Parse()
@@ -361,13 +361,13 @@ func main() {
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
 
-	if ptfsquery || ptfsmount || ptfsumount || mount ||setNavigationMode {
+	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode {
 		err := syscall.Setreuid(0, 0)
 		if err != nil {
 			logger.Error("setreuid_error", nil, err)
 			return
 		}
-		if (setNavigationMode){
+		if setNavigationMode {
 			setMode(NavigateionMode(navi_mode))
 			return
 		}
