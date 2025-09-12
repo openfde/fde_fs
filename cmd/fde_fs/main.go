@@ -355,7 +355,7 @@ func main() {
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
-	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(0) or 3btn(2)")
+	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(2) or 3btn(0)")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
