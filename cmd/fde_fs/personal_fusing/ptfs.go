@@ -261,19 +261,17 @@ func MountPtfs(aospVer string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go inotify.WatchDir(ctx, applicationsDir, inotify.ApplicationType, inotify.DesktopFileType)
+	go inotify.WatchDir(ctx, applicationsDir, "", inotify.ApplicationType, inotify.DesktopFileType)
 
 	for i, _ := range randroidList {
 		go func(source, target string) {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("goroutine_panic_recovered", r, nil)
+				}
+			}()
+			go inotify.WatchDir(ctx, source, target, inotify.DesktopType, inotify.AnyFileType)
 			defer wg.Done()
-			if strings.Contains(target, "Desktop") {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("goroutine_panic_recovered", r, nil)
-					}
-				}()
-				go inotify.WatchDir(ctx, source, inotify.DesktopType, inotify.AnyFileType)
-			}
 
 			err := mountFdePtfs(source, target)
 			if err != nil {
