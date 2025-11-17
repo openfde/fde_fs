@@ -14,13 +14,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func watchDirectory(path, fileType string, addevents, delevents chan string) {
+func watchDirectory(path, transferedPrefix, fileType string, addevents, delevents chan string) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
 		log.Fatalf("Failed to initialize inotify: %v", err)
 	}
 	defer unix.Close(fd)
-
+	if transferedPrefix == "" {
+		transferedPrefix = path
+	}
 	wd, err := unix.InotifyAddWatch(fd, path, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_DELETE|unix.IN_MOVED_FROM)
 	if err != nil {
 		log.Fatalf("Failed to add inotify watch: %v", err)
@@ -38,7 +40,7 @@ func watchDirectory(path, fileType string, addevents, delevents chan string) {
 		for offset < uint32(n) {
 			event := (*unix.InotifyEvent)(unsafe.Pointer(&buf[offset]))
 			name := strings.TrimRight(string(buf[offset+unix.SizeofInotifyEvent:offset+unix.SizeofInotifyEvent+event.Len]), "\x00")
-			fullPath := filepath.Join(path, name)
+			fullPath := filepath.Join(transferedPrefix, name)
 			if fileType != AnyFileType {
 				if !strings.HasSuffix(name, fileType) {
 					continue
@@ -76,11 +78,11 @@ const DesktopType = "desktop"
 const DesktopFileType = ".desktop"
 const AnyFileType = "*"
 
-func WatchDir(ctx context.Context, dir, notifyType, fileType string) {
+func WatchDir(ctx context.Context, dir, transferdPrefix, notifyType, fileType string) {
 
 	addevents := make(chan string)
 	delevents := make(chan string)
-	go watchDirectory(dir, fileType, addevents, delevents)
+	go watchDirectory(dir, transferdPrefix, fileType, addevents, delevents)
 	for {
 		select {
 		case event := <-addevents:
