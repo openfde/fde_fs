@@ -6,11 +6,14 @@ import (
 	"fde_fs/logger"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unsafe"
 
+	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/unix"
 )
 
@@ -72,8 +75,8 @@ type InotifyEvent struct {
 	OpCode   Op // "add" or "delete"
 }
 
-const ApplicationType = "application"
-const DesktopType = "desktop"
+const ApplicationNotifyType = "application"
+const AnyFileNotifyType = "any"
 
 const DesktopFileType = ".desktop"
 const AnyFileType = "*"
@@ -128,4 +131,189 @@ func WatchDir(ctx context.Context, dir, transferdPrefix, notifyType, fileType st
 			}
 		}
 	}
+}
+
+func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string) error {
+	// recursive inotify watcher implemented as a local function and used below.
+	addevents := make(chan string)
+	delevents := make(chan string)
+	// // watchRecursive watches root and all its subdirectories. rootPrefix is prefixed to
+	// // reported paths when sending on addevents/delevents. ctx cancels the whole watcher.
+	// var watchRecursive func(ctx context.Context, rootPrefix, root string, addevents, delevents chan string) error
+	// watchRecursive =
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	// ensure watcher closed when function returns
+	go func() {
+		<-ctx.Done()
+		_ = watcher.Close()
+	}()
+
+	var mu sync.Mutex
+	watched := make(map[string]struct{})
+
+	// addDir registers watcher for dir and all subdirectories (recursively).
+	addDir := func(dir string) error {
+		return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				// ignore paths we can't access
+				return nil
+			}
+			if !d.IsDir() {
+				return nil
+			}
+			mu.Lock()
+			_, ok := watched[path]
+			mu.Unlock()
+			if ok {
+				return nil
+			}
+			if err := watcher.Add(path); err != nil {
+				// ignore failures to add individual dirs
+				return nil
+			}
+			mu.Lock()
+			watched[path] = struct{}{}
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	// initialize by adding root recursively
+	if err := addDir(root); err != nil {
+		_ = watcher.Close()
+		return err
+	}
+
+	// event processing goroutine
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					// channel closed
+					return
+				}
+				// prepare reported path with rootPrefix
+				reportPath := filepath.Join(rootPrefix, event.Name)
+				log.Println("event name :", event.Name)
+
+				// CREATE: if directory, add watchers recursively
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					fi, err := os.Lstat(event.Name)
+					if err == nil && fi.IsDir() {
+						_ = addDir(event.Name)
+					}
+					// send create event (file or dir)
+					select {
+					case addevents <- reportPath:
+
+					case <-ctx.Done():
+						return
+					}
+				}
+
+				// REMOVE or RENAME: treat as deletion/move away
+				if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
+					// remove any watched subdirectories under this path
+					mu.Lock()
+					for p := range watched {
+						if p == event.Name || strings.HasPrefix(p, event.Name+string(os.PathSeparator)) {
+							_ = watcher.Remove(p)
+							delete(watched, p)
+						}
+					}
+					mu.Unlock()
+					select {
+					case delevents <- reportPath:
+
+					case <-ctx.Done():
+						return
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				_ = err // optionally log errors
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// print events until context cancelled
+	go func() {
+		for {
+			select {
+			case p, ok := <-addevents:
+				if !ok {
+					return
+				}
+				{
+					IEvent := InotifyEvent{
+						FileName: p,
+						OpCode:   DELETE,
+					}
+					encode, err := json.Marshal(IEvent)
+					if err != nil {
+						logger.Error("json_marshal_error", p, err)
+						continue
+					}
+					cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
+					if err := cmd.Run(); err != nil {
+						logger.Error("command_execution_error", string(encode), err)
+						continue
+					}
+				}
+				log.Println("ADD:", p)
+			case p, ok := <-delevents:
+				if !ok {
+					return
+				}
+				log.Println("DEL:", p)
+				{
+					IEvent := InotifyEvent{
+						FileName: p,
+						OpCode:   ADD,
+					}
+					encode, err := json.Marshal(IEvent)
+					if err != nil {
+						logger.Error("json_marshal_error", p, err)
+						continue
+					}
+
+					cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
+					if err := cmd.Run(); err != nil {
+						logger.Error("command_execution_error", string(encode), err)
+						continue
+					}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// block until ctx done; caller may cancel to stop everything
+	<-ctx.Done()
+	// cleanup
+	mu.Lock()
+	for p := range watched {
+		_ = watcher.Remove(p)
+	}
+	mu.Unlock()
+	_ = watcher.Close()
+	return nil
+
+	// Example usage: start watcher for "." with empty prefix, print events, stop on interrupt.
+	// go func() {
+	// 	if err := WatchDirRecursive(ctx, "", ".", notifyType, addevents, delevents); err != nil {
+	// 		log.Println("watchRecursive error:", err)
+	// 	}
+	// }()
+
+	return nil
 }
