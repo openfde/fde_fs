@@ -198,7 +198,7 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 				}
 				// prepare reported path with rootPrefix
 				reportPath := filepath.Join(rootPrefix, event.Name)
-				log.Println("event name :", event.Name)
+				logger.Info("event name :", event.Name)
 
 				// CREATE: if directory, add watchers recursively
 				if event.Op&fsnotify.Create == fsnotify.Create {
@@ -268,12 +268,12 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 						continue
 					}
 				}
-				log.Println("ADD:", p)
+				logger.Info("ADD:", p)
 			case p, ok := <-delevents:
 				if !ok {
 					return
 				}
-				log.Println("DEL:", p)
+				logger.Info("DEL:", p)
 				{
 					IEvent := InotifyEvent{
 						FileName: p,
