@@ -7,4 +7,7 @@ require (
 	github.com/winfsp/cgofuse v1.5.0
 )
 
-require golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
+require (
+	github.com/fsnotify/fsnotify v1.9.0
+	golang.org/x/sys v0.13.0
+)
