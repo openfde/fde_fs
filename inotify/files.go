@@ -76,7 +76,7 @@ type InotifyEvent struct {
 }
 
 const ApplicationNotifyType = "application"
-const AnyFileNotifyType = "any"
+const AnyFileNotifyType = "desktop"
 
 const DesktopFileType = ".desktop"
 const AnyFileType = "*"
@@ -133,7 +133,7 @@ func WatchDir(ctx context.Context, dir, transferdPrefix, notifyType, fileType st
 	}
 }
 
-func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string) error {
+func WatchDirRecursive(ctx context.Context, root,rootPrefix, notifyType string) error {
 	// recursive inotify watcher implemented as a local function and used below.
 	addevents := make(chan string)
 	delevents := make(chan string)
@@ -187,6 +187,7 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 		return err
 	}
 
+	logger.Info("watch_dir_recursive",root)
 	// event processing goroutine
 	go func() {
 		for {
@@ -197,7 +198,9 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 					return
 				}
 				// prepare reported path with rootPrefix
-				reportPath := filepath.Join(rootPrefix, event.Name)
+				// remove the 'root' prefix from event.Name to get a relative path
+				relPath := strings.TrimPrefix(event.Name, root)
+				reportPath := filepath.Join(rootPrefix, relPath)
 				logger.Info("event name :", event.Name)
 
 				// CREATE: if directory, add watchers recursively
@@ -255,7 +258,7 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 				{
 					IEvent := InotifyEvent{
 						FileName: p,
-						OpCode:   DELETE,
+						OpCode:   ADD,
 					}
 					encode, err := json.Marshal(IEvent)
 					if err != nil {
@@ -268,16 +271,14 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 						continue
 					}
 				}
-				logger.Info("ADD:", p)
 			case p, ok := <-delevents:
 				if !ok {
 					return
 				}
-				logger.Info("DEL:", p)
 				{
 					IEvent := InotifyEvent{
 						FileName: p,
-						OpCode:   ADD,
+						OpCode:   DELETE,
 					}
 					encode, err := json.Marshal(IEvent)
 					if err != nil {
@@ -306,14 +307,5 @@ func WatchDirRecursive(ctx context.Context, rootPrefix, root, notifyType string)
 	}
 	mu.Unlock()
 	_ = watcher.Close()
-	return nil
-
-	// Example usage: start watcher for "." with empty prefix, print events, stop on interrupt.
-	// go func() {
-	// 	if err := WatchDirRecursive(ctx, "", ".", notifyType, addevents, delevents); err != nil {
-	// 		log.Println("watchRecursive error:", err)
-	// 	}
-	// }()
-
 	return nil
 }
