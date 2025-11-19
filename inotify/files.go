@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func watchDirectory(path, transferedPrefix, fileType string, addevents, delevents chan string) {
+func watchDirectory(path, fileType string, addevents, delevents chan string) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
 		log.Fatalf("Failed to initialize inotify: %v", err)
@@ -81,11 +81,11 @@ const AnyFileNotifyType = "desktop"
 const DesktopFileType = ".desktop"
 const AnyFileType = "*"
 
-func WatchDir(ctx context.Context, dir, transferdPrefix, notifyType, fileType string) {
+func WatchDir(ctx context.Context, dir, notifyType, fileType string) {
 
 	addevents := make(chan string)
 	delevents := make(chan string)
-	go watchDirectory(dir, transferdPrefix, fileType, addevents, delevents)
+	go watchDirectory(dir, fileType, addevents, delevents)
 	for {
 		select {
 		case event := <-addevents:
@@ -133,7 +133,7 @@ func WatchDir(ctx context.Context, dir, transferdPrefix, notifyType, fileType st
 	}
 }
 
-func WatchDirRecursive(ctx context.Context, root,rootPrefix, notifyType string) error {
+func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string) error {
 	// recursive inotify watcher implemented as a local function and used below.
 	addevents := make(chan string)
 	delevents := make(chan string)
@@ -187,7 +187,7 @@ func WatchDirRecursive(ctx context.Context, root,rootPrefix, notifyType string) 
 		return err
 	}
 
-	logger.Info("watch_dir_recursive",root)
+	logger.Info("watch_dir_recursive", root)
 	// event processing goroutine
 	go func() {
 		for {
