@@ -201,7 +201,6 @@ func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string)
 				// remove the 'root' prefix from event.Name to get a relative path
 				relPath := strings.TrimPrefix(event.Name, root)
 				reportPath := filepath.Join(rootPrefix, relPath)
-				logger.Info("event name :", event.Name)
 
 				// CREATE: if directory, add watchers recursively
 				if event.Op&fsnotify.Create == fsnotify.Create {
