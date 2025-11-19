@@ -261,7 +261,7 @@ func MountPtfs(aospVer string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go inotify.WatchDir(ctx, applicationsDir, "", inotify.ApplicationNotifyType, inotify.DesktopFileType)
+	go inotify.WatchDir(ctx, applicationsDir, inotify.ApplicationNotifyType, inotify.DesktopFileType)
 
 	for i, _ := range randroidList {
 		go func(source, target string) {
