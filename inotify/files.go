@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/fsnotify/fsnotify"
@@ -23,9 +24,6 @@ func watchDirectory(path, fileType string, addevents, delevents chan string) {
 		log.Fatalf("Failed to initialize inotify: %v", err)
 	}
 	defer unix.Close(fd)
-	if transferedPrefix == "" {
-		transferedPrefix = path
-	}
 	wd, err := unix.InotifyAddWatch(fd, path, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_DELETE|unix.IN_MOVED_FROM)
 	if err != nil {
 		log.Fatalf("Failed to add inotify watch: %v", err)
@@ -43,7 +41,7 @@ func watchDirectory(path, fileType string, addevents, delevents chan string) {
 		for offset < uint32(n) {
 			event := (*unix.InotifyEvent)(unsafe.Pointer(&buf[offset]))
 			name := strings.TrimRight(string(buf[offset+unix.SizeofInotifyEvent:offset+unix.SizeofInotifyEvent+event.Len]), "\x00")
-			fullPath := filepath.Join(transferedPrefix, name)
+			fullPath := filepath.Join(path, name)
 			if fileType != AnyFileType {
 				if !strings.HasSuffix(name, fileType) {
 					continue
@@ -133,6 +131,40 @@ func WatchDir(ctx context.Context, dir, notifyType, fileType string) {
 	}
 }
 
+type recentPathPrefixInfo struct {
+	path string
+	time int64
+}
+
+var recentPath recentPathPrefixInfo
+var recentWriteLock sync.Mutex
+
+const recentPathPrefixUpdateInterval = 1000 //ms
+
+func (r recentPathPrefixInfo) Path() string {
+	return r.path
+}
+
+func (r recentPathPrefixInfo) IsContainsPrefixAndUpdateAutomaticly(path string) bool {
+	recentWriteLock.Lock()
+	defer recentWriteLock.Unlock()
+	if r.isLessOneSec() {
+		return strings.HasPrefix(path, r.path)
+	} else {
+		r.update(path)
+		return false
+	}
+}
+
+func (r recentPathPrefixInfo) isLessOneSec() bool {
+	return time.Now().UnixMilli()-r.time < recentPathPrefixUpdateInterval
+}
+
+func (r recentPathPrefixInfo) update(newpath string) {
+	r.time = time.Now().UnixMilli()
+	r.path = newpath
+}
+
 func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string) error {
 	// recursive inotify watcher implemented as a local function and used below.
 	addevents := make(chan string)
@@ -206,11 +238,15 @@ func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string)
 				if event.Op&fsnotify.Create == fsnotify.Create {
 					/*fi, err := os.Lstat(event.Name)
 					if err == nil && fi.IsDir() {
+						if recentPath.IsContainsPrefixAndUpdateAutomaticly(event.Name) {
+							continue
+						}
 						_ = addDir(event.Name)
 					}
 					*/
 					// send create event (file or dir)
 					select {
+
 					case addevents <- reportPath:
 
 					case <-ctx.Done():
@@ -255,21 +291,20 @@ func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string)
 				if !ok {
 					return
 				}
-				{
-					IEvent := InotifyEvent{
-						FileName: p,
-						OpCode:   ADD,
-					}
-					encode, err := json.Marshal(IEvent)
-					if err != nil {
-						logger.Error("json_marshal_error", p, err)
-						continue
-					}
-					cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
-					if err := cmd.Run(); err != nil {
-						logger.Error("command_execution_error", string(encode), err)
-						continue
-					}
+
+				IEvent := InotifyEvent{
+					FileName: p,
+					OpCode:   ADD,
+				}
+				encode, err := json.Marshal(IEvent)
+				if err != nil {
+					logger.Error("json_marshal_error", p, err)
+					continue
+				}
+				cmd := exec.Command("waydroid", "notify", notifyType, string(encode))
+				if err := cmd.Run(); err != nil {
+					logger.Error("command_execution_error", string(encode), err)
+					continue
 				}
 			case p, ok := <-delevents:
 				if !ok {
