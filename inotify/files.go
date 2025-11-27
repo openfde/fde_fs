@@ -204,10 +204,11 @@ func WatchDirRecursive(ctx context.Context, root, rootPrefix, notifyType string)
 
 				// CREATE: if directory, add watchers recursively
 				if event.Op&fsnotify.Create == fsnotify.Create {
-					fi, err := os.Lstat(event.Name)
+					/*fi, err := os.Lstat(event.Name)
 					if err == nil && fi.IsDir() {
 						_ = addDir(event.Name)
 					}
+					*/
 					// send create event (file or dir)
 					select {
 					case addevents <- reportPath:
