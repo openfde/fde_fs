@@ -2,7 +2,9 @@ package personal_fusing
 
 import (
 	"context"
+	"os/signal"
 	"fde_fs/inotify"
+	"errors"
 	"fde_fs/logger"
 	"fmt"
 	"io/ioutil"
@@ -28,11 +30,50 @@ func UmountPtfs(aospVer string) error {
 	}
 	androidDir := filepath.Join(home, filepath.Join(localMedia0))
 	syscall.Setreuid(-1, 0)
+	umountsuccess:=true
 	for _, dir := range androidDirList {
 		logger.Info("umount_volumes", filepath.Join(androidDir, dir))
 		err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
 		if err != nil {
 			logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
+			umountsuccess= false
+		}
+	}
+	if umountsuccess {
+		return nil
+	}
+	logger.Info("kill_fde_ptfs",nil)
+
+	// Find process "fde_fs -pm" via ps and send SIGTERM (15)
+	out, err := exec.Command("ps", "-eo", "pid,command").Output()
+	if err != nil {
+		logger.Error("ps_list_failed", nil, err)
+		return err
+	}
+	selfPID := os.Getpid()
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		var pid int
+		if _, err := fmt.Sscanf(fields[0], "%d", &pid); err != nil {
+			continue
+		}
+		if pid == selfPID {
+			continue
+		}
+		cmdline := strings.Join(fields[1:], " ")
+		if strings.Contains(cmdline, "fde_fs") && strings.Contains(cmdline, " -pm") {
+			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+				logger.Error("send_sigterm_failed", pid, err)
+			} else {
+				logger.Info("send_sigterm_success", pid)
+			}
 		}
 	}
 	return nil
@@ -174,6 +215,35 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 	ptfsActualCount := strings.Count(string(mounts), ptfsQueryName)
 	if ptfsActualCount >= ptfsCount {
 		logger.Info("count_ptfs", "more than "+fmt.Sprint(ptfsCount))
+		out, err := exec.Command("ps", "-eo", "pid,ppid,comm").Output()
+		if err != nil {
+			logger.Error("ps_list_failed", nil, err)
+			return false,0, err
+		}
+		have_proc_fde_ptfs := false
+		for _, line := range strings.Split(string(out), "\n") {
+			logger.Info("_filter_proc",line)
+			fields := strings.Fields(strings.TrimSpace(line))
+			if len(fields) < 3 {
+				continue
+			}
+			var pid, ppid int
+			if _, err := fmt.Sscanf(fields[0], "%d", &pid); err != nil {
+				continue
+			}
+			if _, err := fmt.Sscanf(fields[1], "%d", &ppid); err != nil {
+				continue
+			}
+			if fields[2] == "fde_ptfs" {
+				have_proc_fde_ptfs = true
+				if  ppid == 1 {
+					return false, ptfsCount,nil
+				}
+			}
+		}
+		if !have_proc_fde_ptfs {
+			return false, ptfsCount, nil
+		}
 		return true, ptfsActualCount, nil
 	} else {
 		logger.Info("count_ptfs", "actualy is "+fmt.Sprint(strings.Count(string(mounts), ptfsQueryName)))
@@ -184,7 +254,17 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 const applicationsDir = "/usr/share/applications"
 
 func MountPtfs(aospVer string) error {
-
+	sigCh := make(chan os.Signal, 1)
+	waitingCh := make(chan struct{})
+	signal.Notify(sigCh, syscall.SIGHUP,syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigCh
+		logger.Info("sigterm_received", "umount ptfs mount")
+		if err := exec.Command("fde_fs", "-pu").Run(); err != nil {
+			logger.Error("sig_handler_fde_fs_pu_failed", nil, err)
+		}
+		os.Exit(0)
+	}()
 	rlinuxList, randroidList, err := getUserFolders(aospVer)
 	if err != nil {
 		logger.Error("mount_dir_fusing", nil, err)
@@ -197,21 +277,31 @@ func MountPtfs(aospVer string) error {
 		return err
 	}
 	passThroughChan := make(chan struct{})
+	passThroughTimeoutChan := make(chan struct{})
 	go func() {
-		timeout := time.After(10 * time.Second) // Set a timeout of 10 seconds
-		for !queryPassThroughInWaydroid() {
-			logger.Info("query_pass_through", "not mounted")
+		ticker := time.NewTicker(time.Second * 100)
+		defer ticker.Stop()
+		for {
 			select {
-			case <-timeout:
-				break // Stop the loop when timeout is reached
+			case <-ticker.C:
+				logger.Info("received ticker timeout", "not mounted")
+				passThroughTimeoutChan <- struct{}{}
+				return 
 			default:
+				if queryPassThroughInWaydroid() {
+					passThroughChan <- struct{}{}
+					return
+				}
 				time.Sleep(time.Second) // Add a delay before each query
 			}
 		}
-		passThroughChan <- struct{}{}
 	}()
 	select {
 	case <-passThroughChan:
+	case <-passThroughTimeoutChan: {
+		logger.Info("query_pass_through_tiemout_container", "not mounted")
+		return errors.New("timeout")
+		}
 	}
 	dirsExistChan := make(chan struct{})
 	go func() {
@@ -243,20 +333,17 @@ func MountPtfs(aospVer string) error {
 	}
 	var wg sync.WaitGroup
 	wg.Add(len(randroidList))
-	ch := make(chan struct{})
 
-	mounted, ptCount, err := getPtfs(len(randroidList))
+	mounted, _, err := getPtfs(len(randroidList))
 	if err != nil {
 		logger.Error("get_ptfs_error", nil, err)
 		return err
 	}
+	logger.Info("after_get_ptfs_mounted",nil)
 	if mounted {
-		//already mounted
 		return nil
 	} else {
-		if ptCount > 0 {
-			UmountPtfs(aospVer) //umount first, in order to avoid only some(not all) dirs mounted
-		}
+		UmountPtfs(aospVer) //umount first, in order to avoid only some(not all) dirs mounted
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -273,19 +360,20 @@ func MountPtfs(aospVer string) error {
 			// go inotify.WatchDirRecursive(ctx, source, filepath.Base(target), inotify.AnyFileNotifyType)
 			defer wg.Done()
 
+			logger.Info("mount_ptfs",source +target)
 			err := mountFdePtfs(source, target)
 			if err != nil {
 				logger.Error("mount_ptfsfuse_error", err, nil)
-				ch <- struct{}{}
+				waitingCh <- struct{}{}
 			}
 		}(rlinuxList[i], randroidList[i])
 	}
 
 	go func() {
 		wg.Wait()        //waitting for all goroutine
-		ch <- struct{}{} //unlock the main goroutine
+		waitingCh <- struct{}{} //unlock the main goroutine
 	}()
-	<-ch //block here
+	<-waitingCh //block here
 	logger.Info("mount_ptfs_exit", "exit")
 	return nil
 }
