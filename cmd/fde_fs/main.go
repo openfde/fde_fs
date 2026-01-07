@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os/signal"
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
@@ -286,6 +287,7 @@ func UmountAllVolumes() error {
 		err = syscall.Unmount(path, 0)
 		if err != nil {
 			logger.Error("umount_volumes", path, err)
+			os.Remove(path)
 		}
 	}
 	return nil
@@ -470,6 +472,16 @@ func main() {
 	if !mount {
 		return
 	}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGHUP,syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigCh
+		logger.Info("sigterm_received", "umount volumes")
+		if err := exec.Command("fde_fs", "-u").Run(); err != nil {
+			logger.Error("sig_handler_fde_fs_u_failed", nil, err)
+		}
+		os.Exit(0)
+	}()
 
 	//mount /HOME/.local/share/openfde on /HOME/openfde
 	dataOrigin, dataPoint, err := MKDataDir(aospVersion)
