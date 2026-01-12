@@ -222,7 +222,6 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 		}
 		have_proc_fde_ptfs := false
 		for _, line := range strings.Split(string(out), "\n") {
-			logger.Info("_filter_proc",line)
 			fields := strings.Fields(strings.TrimSpace(line))
 			if len(fields) < 3 {
 				continue

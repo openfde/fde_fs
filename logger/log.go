@@ -2,6 +2,8 @@ package logger
 
 import (
 	"os"
+	"strings"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
@@ -18,10 +20,27 @@ var (
 func Init() *StandardLogger {
 	var baseLogger = logrus.New()
 	var standard = &StandardLogger{baseLogger}
-	standard.SetLevel(logrus.TraceLevel)
+
+	levelStr := strings.TrimSpace(os.Getenv("FDE_LOG_LEVEL"))
+	if levelStr == "" {
+		standard.SetLevel(logrus.ErrorLevel)
+	} else {
+		// try parse as level name first (e.g., "info", "warn")
+		if lvl, err := logrus.ParseLevel(strings.ToLower(levelStr)); err == nil {
+			standard.SetLevel(lvl)
+		} else if n, err := strconv.Atoi(levelStr); err == nil {
+			// fall back to numeric level
+			standard.SetLevel(logrus.Level(n))
+		} else {
+			// invalid value, use default
+			standard.SetLevel(logrus.ErrorLevel)
+		}
+	}
+
 	standard.Formatter = &logrus.JSONFormatter{}
 	return standard
 }
+
 
 // NewLogger New logger by  loggerLine
 func NewLogger() *StandardLogger {
