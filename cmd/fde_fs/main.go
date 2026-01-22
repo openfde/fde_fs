@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os/signal"
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
@@ -12,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -343,7 +343,7 @@ const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode bool
+		logrotate, setNavigationMode, install bool
 	var navi_mode string
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
@@ -358,10 +358,27 @@ func main() {
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
 	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(2) or 3btn(0)")
+	var installPath string
+	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
+	flag.BoolVar(&install, "install", false, "install openfde deb")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
+
+	if install {
+		if len(installPath) > 0 {
+			err := installDEB(installPath)
+			if err != nil {
+				logger.Error("install_deb_failed", installPath, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		} else {
+			fmt.Println("please provide the deb file path with -path")
+			os.Exit(1)
+		}
+	}
 
 	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode {
 		err := syscall.Setreuid(0, 0)
@@ -473,7 +490,7 @@ func main() {
 		return
 	}
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP,syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-sigCh
 		logger.Info("sigterm_received", "umount volumes")
