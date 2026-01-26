@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
 	github.com/fsnotify/fsnotify v1.9.0
 	golang.org/x/sys v0.13.0
 )

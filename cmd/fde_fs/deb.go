@@ -5,26 +5,7 @@ import (
 	"context"
 	"fde_fs/logger"
 	"os/exec"
-	"syscall"
 )
-
-func daemonInstallDEB(debPath string) error {
-	// 启动守护进程
-	cmd := &exec.Cmd{
-		Path: "/usr/bin/dpkg",
-		Args: []string{"-i", debPath},
-		SysProcAttr: &syscall.SysProcAttr{
-			Setsid:  true, // 创建新会话
-			Setctty: false,
-			Ctty:    0,
-		},
-	}
-
-	if err := cmd.Start(); err != nil {
-		panic(err)
-	}
-	return nil
-}
 
 func installDEB(debPath string) error {
 	var cmd *exec.Cmd
