@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fde_fs/logo"
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
+	"fde_fs/logo"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -344,7 +344,7 @@ const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode, install bool
+		logrotate, setNavigationMode, install, restart bool
 	var navi_mode string
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
@@ -362,6 +362,7 @@ func main() {
 	var installPath string
 	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
 	flag.BoolVar(&install, "install", false, "install openfde deb")
+	flag.BoolVar(&restart, "restart", false, "restart fde  after install")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
@@ -376,6 +377,14 @@ func main() {
 			if err != nil {
 				logger.Error("install_deb_failed", installPath, err)
 				os.Exit(1)
+			}
+			if restart {
+				_ = syscall.Setreuid(LinuxUID, 0)
+				cmd := exec.Command("fde_utils", "start")
+				err = cmd.Run()
+				if err != nil {
+					logger.Error("fde_utils_start_failed", nil, err)
+				}
 			}
 			os.Exit(0)
 		} else {
