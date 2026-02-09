@@ -425,14 +425,6 @@ func main() {
 		}
 	case ptfsmount:
 		{
-			status, err := getStatus()
-			if err != nil {
-				logger.Error("ptfs_mount_get_status", nil, err)
-				return
-			}
-			if err := setSoftModeDepend(status); err != nil {
-				return
-			}
 			personal_fusing.MountPtfs(aospVersion)
 			return
 		}
