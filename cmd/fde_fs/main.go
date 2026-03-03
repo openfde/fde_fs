@@ -339,6 +339,29 @@ func setSoftModeDepend(status string) error {
 	return nil
 }
 
+func setDensity(density int) {
+	if density < 120 || density > 640 {
+		fmt.Println("error: a reasonable density value is typically between 120 and 640.")
+		logger.Warn("error: a reasonable density value is typically between 120 and 640", nil)
+		return
+	}
+	cmd := exec.Command("waydroid", "shell", "wm", "density", strconv.Itoa(density))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error("waydroid set density failed", map[string]interface{}{
+			"density": density,
+			"output":  string(output),
+		}, err)
+		fmt.Printf("set density failed：%v\n输出：%s\n", err, string(output))
+	}else{
+		logger.Warn("waydroid set density %d success\n", density)
+		fmt.Printf("set density %d success\n", density)
+	}
+	if len(output) > 0 {
+		fmt.Println("cmd output：", string(output))
+	}
+}
+
 const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
@@ -376,27 +399,7 @@ func main() {
 			return
 		}
 		if density > 0 {
-			if density < 120 || density > 640 {
-				fmt.Println("error: a reasonable density value is typically between 120 and 640.")
-				logger.Warn("error: a reasonable density value is typically between 120 and 640", nil)
-				os.Exit(1)
-			}
-			cmd := exec.Command("waydroid", "shell", "wm", "density", strconv.Itoa(density))
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				logger.Error("waydroid set density failed", map[string]interface{}{
-					"density": density,
-					"output":  string(output),
-				}, err)
-				fmt.Printf("set density failed：%v\n输出：%s\n", err, string(output))
-				os.Exit(1)
-			}else{
-				logger.Warn("waydroid set density %d success\n", density)
-				fmt.Printf("set density %d success\n", density)
-			}
-			if len(output) > 0 {
-				fmt.Println("cmd output：", string(output))
-			}
+			setDensity(density)
 			return
 		}
 		readAospVersion()
