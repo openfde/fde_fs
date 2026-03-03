@@ -339,12 +339,36 @@ func setSoftModeDepend(status string) error {
 	return nil
 }
 
+func setDensity(density int) {
+	if density < 120 || density > 640 {
+		fmt.Println("error: a reasonable density value is typically between 120 and 640.")
+		logger.Warn("error: a reasonable density value is typically between 120 and 640", nil)
+		return
+	}
+	cmd := exec.Command("waydroid", "shell", "wm", "density", strconv.Itoa(density))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error("waydroid set density failed", map[string]interface{}{
+			"density": density,
+			"output":  string(output),
+		}, err)
+		fmt.Printf("set density failed：%v\n输出：%s\n", err, string(output))
+	}else{
+		logger.Warn("waydroid set density %d success\n", density)
+		fmt.Printf("set density %d success\n", density)
+	}
+	if len(output) > 0 {
+		fmt.Println("cmd output：", string(output))
+	}
+}
+
 const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
 		logrotate, setNavigationMode bool
 	var navi_mode string
+	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
 	flag.BoolVar(&umount, "u", false, "umount volumes")
@@ -358,12 +382,13 @@ func main() {
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
 	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(2) or 3btn(0)")
+	flag.IntVar(&density, "density", 0, "set screen density (-density 160 or 256)")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
 
-	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode {
+	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode || density > 0 {
 		err := syscall.Setreuid(0, 0)
 		if err != nil {
 			logger.Error("setreuid_error", nil, err)
@@ -371,6 +396,10 @@ func main() {
 		}
 		if setNavigationMode {
 			setMode(NavigateionMode(navi_mode))
+			return
+		}
+		if density > 0 {
+			setDensity(density)
 			return
 		}
 		readAospVersion()
