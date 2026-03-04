@@ -382,11 +382,11 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 		//read the permission allowd list to decide whether the uid have permission to do
 
 	}
-	//avoid the recursive loop of the /volumes directory
-	if self.original == "/" {
+	//avoid the recursive loop of the /var/lib/fde/volumes directory
+	if self.original == "/var/lib/fde/" {
 		list := strings.Split(path, "/")
 		if len(list) >= 2 {
-			if list[1] == FSPrefix {
+			if list[len(list)-1] == FSPrefix {
 				return -int(syscall.ENOENT), 1
 			}
 		}
@@ -415,7 +415,7 @@ func (self *Ptfs) Readdir(path string,
 	}
 	nams = append([]string{".", ".."}, nams...)
 	for _, name := range nams {
-		if self.original == "/" {
+		if self.original == "/var/lib/fde/" {
 			if name == FSPrefix {
 				continue
 			}

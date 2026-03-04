@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os/signal"
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
@@ -12,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -61,7 +61,7 @@ func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
 }
 
 const FSPrefix = "volumes"
-const PathPrefix = "/volumes/"
+const PathPrefix = "/var/lib/fde/volumes/"
 
 func readProcess(pid uint32) {
 	ioutil.ReadFile("/proc/" + fmt.Sprint(pid) + "/environ")
@@ -138,7 +138,7 @@ func ConstructMountArgs() (mArgs []MountArgs, err error) {
 		})
 	}
 	if len(uuidToPaths) > 0 {
-		err := WriteJSONToFile("/volumes/.fde_path_key", uuidToPaths)
+		err := WriteJSONToFile(PathPrefix+".fde_path_key", uuidToPaths)
 		if err != nil {
 			logger.Error("write_fde_path", uuidToPaths, err)
 		}
@@ -183,6 +183,7 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 	var mountInfoByDevice map[string]volumeAndMountPoint
 	mountInfoByDevice = make(map[string]volumeAndMountPoint)
 	lines := strings.Split(string(mounts), "\n")
+	var rootMountPointFlg = false
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		//below is a line example of the mountinfo
@@ -205,6 +206,9 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 			continue
 		}
 		mountPoint := fields[indexMountPoint]
+		if mountPoint == "/" {
+			rootMountPointFlg = true
+		}
 		mountID := fields[indexMountID]
 		//whether a device is lvm
 		if strings.Contains(fields[indexDevice], "/dev/mapper") {
@@ -233,6 +237,27 @@ func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
 		mountInfoByDevice[fields[indexDevice]] = volumeAndMountPoint{
 			MountPoint: mountPoint,
 			MountID:    mountID,
+		}
+	}
+	if !rootMountPointFlg {
+		data, err := os.ReadFile("/proc/self/mounts")
+		if err != nil {
+			logger.Error("read_proc_mount_for_root_failed", nil, err)
+			return mountInfoByDevice
+		}
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			if fields[1] == "/" {
+				mountInfoByDevice[fields[0]] = volumeAndMountPoint{
+					MountPoint: "/",
+					MountID:    "0",
+				}
+				break
+			}
 		}
 	}
 	return mountInfoByDevice
@@ -353,7 +378,7 @@ func setDensity(density int) {
 			"output":  string(output),
 		}, err)
 		fmt.Printf("set density failed：%v\n输出：%s\n", err, string(output))
-	}else{
+	} else {
 		logger.Warn("waydroid set density %d success\n", density)
 		fmt.Printf("set density %d success\n", density)
 	}
@@ -494,7 +519,7 @@ func main() {
 		return
 	}
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP,syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-sigCh
 		logger.Info("sigterm_received", "umount volumes")
