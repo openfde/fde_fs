@@ -59,6 +59,23 @@ func MKDataDir(aospVer string) (media0, homeOpenfde string, err error) {
 		}
 	}
 
+	iconsPath := filepath.Join(origin, "icons")
+	_, err = os.Stat(iconsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.Mkdir(iconsPath, os.ModeDir+0775)
+			if err != nil {
+				logger.Error("mkdir_icons", iconsPath, err)
+				return
+			}
+			err = os.Chown(iconsPath, os.Getuid(), os.Getgid())
+			if err != nil {
+				logger.Error("chown_icons", iconsPath, err)
+				return
+			}
+		}
+	}
+
 	homeOpenfde = filepath.Join(home, "openfde")
 	_, err = os.Stat(homeOpenfde)
 	if err != nil {
