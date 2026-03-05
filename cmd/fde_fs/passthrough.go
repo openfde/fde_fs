@@ -27,6 +27,44 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 )
 
+func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
+	var own uint32
+	if uid == duid {
+		own = (perm & uint32(0b111000000)) >> 6
+		if own >= 4 {
+			return true
+		}
+	} else if gid == dgid {
+		own = (perm & uint32(0b000111000)) >> 3
+	} else {
+		own = perm & uint32(0b000000111)
+	}
+
+	if own >= 4 {
+		return true
+	}
+	return false
+}
+
+func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
+	var own uint32
+	if uid == duid {
+		own = (perm & uint32(0b111000000)) >> 6
+		if own >= 4 {
+			return true
+		}
+	} else if gid == dgid {
+		own = (perm & uint32(0b000111000)) >> 3
+	} else {
+		own = perm & uint32(0b000000111)
+	}
+
+	if (own & 1 << 1) == 2 {
+		return true
+	}
+	return false
+}
+
 func trace(vals ...interface{}) func(vals ...interface{}) {
 	uid, gid, _ := fuse.Getcontext()
 	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
