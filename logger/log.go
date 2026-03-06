@@ -48,19 +48,25 @@ var LumberLogger *lumberjack.Logger
 
 func Rotate() {
 	if LumberLogger != nil {
-		if _, err := os.Stat(logFile); os.IsNotExist(err) {
-			file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-			if err != nil {
-				Logger.WithError(err).Error("log_file_create_failed")
-				return
-			}
-			file.Close()
-		}
-		err := LumberLogger.Rotate()
+		err := (&CustomLumberjack{LumberLogger}).Rotate()
 		if err != nil {
 			Logger.WithError(err).Error("log_rotate_failed")
 		}
 	}
+}
+
+type CustomLumberjack struct {
+	*lumberjack.Logger
+}
+
+func (l *CustomLumberjack) Rotate() error {
+	err := l.Logger.Rotate()
+	if err != nil {
+		return err
+	}
+
+	// 修改当前日志文件的权限
+	return os.Chmod(l.Filename, 0666)
 }
 
 // NewLogger New logger by  loggerLine
@@ -75,7 +81,8 @@ func NewLogger() *StandardLogger {
 			MaxAge:     30,   //days
 			Compress:   true, // disabled by default
 		}
-		standard.SetOutput(LumberLogger)
+		customLogger := &CustomLumberjack{LumberLogger}
+		standard.SetOutput(customLogger)
 	}
 	standard.loggerLine()
 	return standard
