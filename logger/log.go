@@ -44,18 +44,30 @@ func Init() *StandardLogger {
 	return standard
 }
 
+var LumberLogger *lumberjack.Logger
+
+func Rotate() {
+	if LumberLogger != nil {
+		err := LumberLogger.Rotate()
+		if err != nil {
+			Logger.WithError(err).Error("log_rotate_failed")
+		}
+	}
+}
+
 // NewLogger New logger by  loggerLine
 func NewLogger() *StandardLogger {
 	standard := Init()
 	logName := logFile
 	if len(logName) != 0 {
-		standard.SetOutput(&lumberjack.Logger{
+		LumberLogger = &lumberjack.Logger{
 			Filename:   logName,
-			MaxSize:    100, // megabytes
-			MaxBackups: 5,
+			MaxSize:    10, // megabytes
+			MaxBackups: 1,
 			MaxAge:     30,   //days
 			Compress:   true, // disabled by default
-		})
+		}
+		standard.SetOutput(LumberLogger)
 	}
 	standard.loggerLine()
 	return standard
