@@ -73,7 +73,7 @@ func main() {
 	switch {
 	case logrotate:
 		{
-			logrotateFDE()
+			logger.Rotate()
 			return
 		}
 	case pwrite:
