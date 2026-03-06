@@ -2,10 +2,11 @@ package logger
 
 import (
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // StandardLogger struct for sentry
@@ -16,6 +17,8 @@ type StandardLogger struct {
 var (
 	Logger = NewLogger() //Logger New logger by loggerSentry and loggerLine
 )
+
+var logFile = "/var/log/fde.log"
 
 func Init() *StandardLogger {
 	var baseLogger = logrus.New()
@@ -41,17 +44,18 @@ func Init() *StandardLogger {
 	return standard
 }
 
-
 // NewLogger New logger by  loggerLine
 func NewLogger() *StandardLogger {
 	standard := Init()
-	logName := os.Getenv("LOG_FILE")
+	logName := logFile
 	if len(logName) != 0 {
-		file, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			panic(err)
-		}
-		standard.SetOutput(file)
+		standard.SetOutput(&lumberjack.Logger{
+			Filename:   logName,
+			MaxSize:    100, // megabytes
+			MaxBackups: 5,
+			MaxAge:     30,   //days
+			Compress:   true, // disabled by default
+		})
 	}
 	standard.loggerLine()
 	return standard
@@ -106,4 +110,3 @@ func generateErrorFields(err error) logrus.Fields {
 		"err": err.Error(),
 	}
 }
-
