@@ -3,6 +3,7 @@ package logger
 import (
 	"os"
 	"strconv"
+	"syscall"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -58,6 +59,7 @@ func Rotate() {
 // NewLogger New logger by  loggerLine
 func NewLogger() *StandardLogger {
 	standard := Init()
+	syscall.Umask(0)
 	logName := logFile
 	if len(logName) != 0 {
 		LumberLogger = &lumberjack.Logger{
