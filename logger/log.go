@@ -48,6 +48,14 @@ var LumberLogger *lumberjack.Logger
 
 func Rotate() {
 	if LumberLogger != nil {
+		if _, err := os.Stat(logFile); os.IsNotExist(err) {
+			file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+			if err != nil {
+				Logger.WithError(err).Error("log_file_create_failed")
+				return
+			}
+			file.Close()
+		}
 		err := LumberLogger.Rotate()
 		if err != nil {
 			Logger.WithError(err).Error("log_rotate_failed")
