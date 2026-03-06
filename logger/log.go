@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/warlice/lumberjack"
 )
 
 // StandardLogger struct for sentry
@@ -48,25 +48,11 @@ var LumberLogger *lumberjack.Logger
 
 func Rotate() {
 	if LumberLogger != nil {
-		err := (&CustomLumberjack{LumberLogger}).Rotate()
+		err := LumberLogger.Rotate()
 		if err != nil {
 			Logger.WithError(err).Error("log_rotate_failed")
 		}
 	}
-}
-
-type CustomLumberjack struct {
-	*lumberjack.Logger
-}
-
-func (l *CustomLumberjack) Rotate() error {
-	err := l.Logger.Rotate()
-	if err != nil {
-		return err
-	}
-
-	// 修改当前日志文件的权限
-	return os.Chmod(l.Filename, 0666)
 }
 
 // NewLogger New logger by  loggerLine
@@ -81,8 +67,7 @@ func NewLogger() *StandardLogger {
 			MaxAge:     30,   //days
 			Compress:   true, // disabled by default
 		}
-		customLogger := &CustomLumberjack{LumberLogger}
-		standard.SetOutput(customLogger)
+		standard.SetOutput(LumberLogger)
 	}
 	standard.loggerLine()
 	return standard
