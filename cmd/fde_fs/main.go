@@ -33,7 +33,7 @@ func main() {
 	flag.BoolVar(&ptfsmount, "pm", false, "personal fusing mount")
 	flag.BoolVar(&ptfsumount, "pu", false, "personal fusing umount")
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
-	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
+	flag.BoolVar(&softmode, "s", false, "off exectl for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
@@ -91,7 +91,7 @@ func main() {
 		{
 			status, err := getStatus()
 			if err != nil {
-				logger.Error("soft_mode_set", nil, err)
+				logger.Error("exectl_off_set", nil, err)
 				return
 			}
 			if err := setSoftModeDepend(status); err != nil {

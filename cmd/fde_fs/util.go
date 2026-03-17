@@ -29,20 +29,20 @@ func setSoftModeDepend(status string) error {
 	}
 	lines := strings.Split(status, "\n")
 	for _, line := range lines {
-		if strings.HasPrefix(line, "KySec status:") {
+		if strings.HasPrefix(line, "exec control") {
 			fields := strings.Fields(line)
 			if len(fields) >= 3 {
 				status := fields[2]
-				if status == "enabled" {
-					cmd := exec.Command("setstatus", "softmode")
+				if status != "off" {
+					cmd := exec.Command("setstatus", "-f", "exectl", "off", "-p")
 					err := cmd.Run()
 					if err != nil {
-						logger.Error("ptfs_mount_set_status", nil, err)
+						logger.Error("ptfs_mount_set_exectl_off", nil, err)
 						return err
 					}
-					logger.Info("ptfs_mount_set_status", "Status set to softmode")
+					logger.Info("ptfs_mount_set_exectl_off", "exectl set to off")
 				} else {
-					logger.Info("ptfs_mount_set_softmode", "already_softmode")
+					logger.Info("ptfs_mount_set_exectl_off", "already_off")
 				}
 				break
 			}
