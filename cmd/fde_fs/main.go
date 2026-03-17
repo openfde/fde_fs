@@ -94,7 +94,7 @@ func main() {
 				logger.Error("exectl_off_set", nil, err)
 				return
 			}
-			if err := setSoftModeDepend(status); err != nil {
+			if err := setExeCtlOff(status); err != nil {
 				return
 			}
 			return

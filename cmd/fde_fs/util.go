@@ -22,7 +22,7 @@ func getStatus() (string, error) {
 	return string(output), nil
 }
 
-func setSoftModeDepend(status string) error {
+func setExeCtlOff(status string) error {
 	if len(status) == 0 {
 		logger.Info("ptfs_mount_get_status", "status is empty")
 		return nil
