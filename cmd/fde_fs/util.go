@@ -22,7 +22,7 @@ func getStatus() (string, error) {
 	return string(output), nil
 }
 
-func setSoftmode error {
+func setSoftmode() error {
 	data, err := os.ReadFile("/etc/os-release")
 	if err != nil {
 		logger.Error("read /etc/os-release failed", nil, err)
@@ -49,7 +49,6 @@ func setSoftmode error {
 	}
 	return nil
 }
-
 
 func setExeCtlOff(status string) error {
 	if len(status) == 0 {
