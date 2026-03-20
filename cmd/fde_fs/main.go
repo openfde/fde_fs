@@ -62,7 +62,7 @@ func main() {
 		if len(aospVersion) == 0 {
 			logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
 			if ptfsumount {
-				logger.Warning("read_aosp_version_failed", "aosp version is empty, but continue to umount ptfs")
+				logger.Warn("read_aosp_version_failed", "aosp version is empty, but continue to umount ptfs")
 				personal_fusing.UmountPtfs("")
 			}
 			os.Exit(1)
