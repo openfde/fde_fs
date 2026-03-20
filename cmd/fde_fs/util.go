@@ -22,6 +22,34 @@ func getStatus() (string, error) {
 	return string(output), nil
 }
 
+func setSoftmode() error {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		logger.Error("read /etc/os-release failed", nil, err)
+		return err
+	}
+	lines := strings.Split(string(data), "\n")
+	var kylinReleaseID string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "KYLIN_RELEASE_ID=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				kylinReleaseID = strings.Trim(parts[1], "\"")
+			}
+			break
+		}
+	}
+	if kylinReleaseID == "2403" {
+		cmd := exec.Command("setstatus", "softmode")
+		err := cmd.Run()
+		if err != nil {
+			logger.Error("ptfs_mount_set_status", nil, err)
+			return err
+		}
+	}
+	return nil
+}
+
 func setExeCtlOff(status string) error {
 	if len(status) == 0 {
 		logger.Info("ptfs_mount_get_status", "status is empty")
@@ -48,6 +76,7 @@ func setExeCtlOff(status string) error {
 			}
 		}
 	}
+	setSoftmode()
 	return nil
 }
 
