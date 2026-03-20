@@ -21,26 +21,28 @@ const Media0 = "/media/0/"
 const LocalShareOpenfde = ".local/share/openfde"
 
 func UmountPtfs(aospVer string) error {
-	localShareOpenfde := LocalShareOpenfde + aospVer
-	localMedia0 := filepath.Join(localShareOpenfde, Media0)
-	home, err := os.UserHomeDir()
-	if err != nil {
-		logger.Error("mount_query_home_failed", os.Getuid(), err)
-		return err
-	}
-	androidDir := filepath.Join(home, filepath.Join(localMedia0))
-	syscall.Setreuid(-1, 0)
-	umountsuccess := true
-	for _, dir := range androidDirList {
-		logger.Info("umount_volumes", filepath.Join(androidDir, dir))
-		err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
+	if len(aospVer) != 0 {
+		localShareOpenfde := LocalShareOpenfde + aospVer
+		localMedia0 := filepath.Join(localShareOpenfde, Media0)
+		home, err := os.UserHomeDir()
 		if err != nil {
-			logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
-			umountsuccess = false
+			logger.Error("mount_query_home_failed", os.Getuid(), err)
+			return err
 		}
-	}
-	if umountsuccess {
-		return nil
+		androidDir := filepath.Join(home, filepath.Join(localMedia0))
+		syscall.Setreuid(-1, 0)
+		umountsuccess := true
+		for _, dir := range androidDirList {
+			logger.Info("umount_volumes", filepath.Join(androidDir, dir))
+			err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
+			if err != nil {
+				logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
+				umountsuccess = false
+			}
+		}
+		if umountsuccess {
+			return nil
+		}
 	}
 	logger.Info("kill_fde_ptfs", nil)
 
