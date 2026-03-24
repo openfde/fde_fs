@@ -56,8 +56,6 @@ func main() {
 	if install {
 		if len(installPath) > 0 {
 			syscall.Setreuid(0, 0)
-			go logo.Show()
-			defer logo.Disappear()
 			err := installDEB(installPath)
 			if err != nil {
 				logger.Error("install_deb_failed", installPath, err)
