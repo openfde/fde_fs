@@ -2,8 +2,12 @@ package logger
 
 import (
 	"os"
+	"strconv"
+	"syscall"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/warlice/lumberjack"
 )
 
 // StandardLogger struct for sentry
@@ -15,24 +19,57 @@ var (
 	Logger = NewLogger() //Logger New logger by loggerSentry and loggerLine
 )
 
+var logFile = "/var/log/fde.log"
+
 func Init() *StandardLogger {
 	var baseLogger = logrus.New()
 	var standard = &StandardLogger{baseLogger}
-	standard.SetLevel(logrus.TraceLevel)
+
+	levelStr := strings.TrimSpace(os.Getenv("FDE_LOG_LEVEL"))
+	if levelStr == "" {
+		standard.SetLevel(logrus.ErrorLevel)
+	} else {
+		// try parse as level name first (e.g., "info", "warn")
+		if lvl, err := logrus.ParseLevel(strings.ToLower(levelStr)); err == nil {
+			standard.SetLevel(lvl)
+		} else if n, err := strconv.Atoi(levelStr); err == nil {
+			// fall back to numeric level
+			standard.SetLevel(logrus.Level(n))
+		} else {
+			// invalid value, use default
+			standard.SetLevel(logrus.ErrorLevel)
+		}
+	}
+
 	standard.Formatter = &logrus.JSONFormatter{}
 	return standard
+}
+
+var LumberLogger *lumberjack.Logger
+
+func Rotate() {
+	if LumberLogger != nil {
+		err := LumberLogger.Rotate()
+		if err != nil {
+			Logger.WithError(err).Error("log_rotate_failed")
+		}
+	}
 }
 
 // NewLogger New logger by  loggerLine
 func NewLogger() *StandardLogger {
 	standard := Init()
-	logName := os.Getenv("LOG_FILE")
+	syscall.Umask(0)
+	logName := logFile
 	if len(logName) != 0 {
-		file, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			panic(err)
+		LumberLogger = &lumberjack.Logger{
+			Filename:   logName,
+			MaxSize:    10, // megabytes
+			MaxBackups: 1,
+			MaxAge:     30,   //days
+			Compress:   true, // disabled by default
 		}
-		standard.SetOutput(file)
+		standard.SetOutput(LumberLogger)
 	}
 	standard.loggerLine()
 	return standard
@@ -87,4 +124,3 @@ func generateErrorFields(err error) logrus.Fields {
 		"err": err.Error(),
 	}
 }
-

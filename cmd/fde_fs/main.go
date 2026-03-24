@@ -8,8 +8,6 @@ import (
 	"fde_fs/logo"
 	"flag"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -23,329 +21,15 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 )
 
-func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
-	var own uint32
-	if uid == duid {
-		own = (perm & uint32(0b111000000)) >> 6
-		if own >= 4 {
-			return true
-		}
-	} else if gid == dgid {
-		own = (perm & uint32(0b000111000)) >> 3
-	} else {
-		own = perm & uint32(0b000000111)
-	}
-
-	if own >= 4 {
-		return true
-	}
-	return false
-}
-
-func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
-	var own uint32
-	if uid == duid {
-		own = (perm & uint32(0b111000000)) >> 6
-		if own >= 4 {
-			return true
-		}
-	} else if gid == dgid {
-		own = (perm & uint32(0b000111000)) >> 3
-	} else {
-		own = perm & uint32(0b000000111)
-	}
-
-	if (own & 1 << 1) == 2 {
-		return true
-	}
-	return false
-}
-
-const FSPrefix = "volumes"
-const PathPrefix = "/volumes/"
-
-func readProcess(pid uint32) {
-	ioutil.ReadFile("/proc/" + fmt.Sprint(pid) + "/environ")
-}
-
-type uuidToPath struct {
-	UUID string
-	Path string
-}
-
-func ConstructMountArgs() (mArgs []MountArgs, err error) {
-	syscall.Umask(0)
-	mounts, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		logger.Error("mount_read_mountinfo", mounts, err)
-		return
-	}
-	mountInfoByDevice := readDevicesAndMountPoint(mounts)
-	files, err := ioutil.ReadDir("/dev/disk/by-uuid")
-	if err != nil {
-		logger.Error("mount_read_disk", mounts, err)
-		return
-	}
-	logger.Info("mount_info_by_device", mountInfoByDevice)
-	volumes, err := supplementVolume(files, mountInfoByDevice)
-	if err != nil {
-		logger.Error("mount_supplement_volume", mounts, err)
-		return
-	}
-
-	//register the volumes info into fde_ctrl
-
-	_, err = os.Stat(PathPrefix)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.Mkdir(PathPrefix, os.ModeDir+0755)
-			if err != nil {
-				logger.Error("mount_mkdir_for_volumes", PathPrefix, err)
-				return
-			}
-		}
-	}
-	logger.Info("in_mount", volumes)
-	var uuidToPaths []uuidToPath
-	for _, mountInfo := range volumes {
-		path := PathPrefix + mountInfo.VolumeUUID
-		uuidToPaths = append(uuidToPaths, uuidToPath{
-			UUID: mountInfo.VolumeUUID,
-			Path: mountInfo.MountPoint,
-		})
-		_, err = os.Stat(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				err = os.Mkdir(path, os.ModeDir+0755)
-				if err != nil {
-					logger.Error("mount_mkdir_for_volumes", mountInfo, err)
-					return
-				}
-			} else {
-				logger.Error("mount_stat_volume", path, err)
-				err = syscall.Unmount(path, 0)
-				if err != nil {
-					logger.Error("umount_volumes", path, err)
-					return
-				}
-			}
-		}
-
-		mArgs = append(mArgs, MountArgs{
-			Args: []string{"-o", "allow_other", PathPrefix + mountInfo.VolumeUUID},
-			PassFS: Ptfs{
-				root: mountInfo.MountPoint,
-			},
-		})
-	}
-	if len(uuidToPaths) > 0 {
-		err := WriteJSONToFile("/volumes/.fde_path_key", uuidToPaths)
-		if err != nil {
-			logger.Error("write_fde_path", uuidToPaths, err)
-		}
-	}
-	return
-}
-
-func WriteJSONToFile(filename string, data interface{}) error {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(filename, jsonData, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-type MountArgs struct {
-	Args   []string
-	PassFS Ptfs
-}
-
-type volumeAndMountPoint struct {
-	VolumeUUID string
-	MountPoint string
-	MountID    string
-	// MountType  string
-}
-
-const LenFieldOfSelfMountInfo = 9
-const indexDevice = 9
-const indexFileType = 8
-const indexPath = 3
-const indexMountPoint = 4
-const indexMountID = 0
-
-func readDevicesAndMountPoint(mounts []byte) map[string]volumeAndMountPoint {
-	var mountInfoByDevice map[string]volumeAndMountPoint
-	mountInfoByDevice = make(map[string]volumeAndMountPoint)
-	lines := strings.Split(string(mounts), "\n")
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		//below is a line example of the mountinfo
-		//35 29 8:5 / /data rw,relatime shared:7 - ext4 /dev/sda5 rw
-		//807 790 7:1 / /var/lib/waydroid/rootfs/vendor ro,relatime shared:446 - ext4 /dev/loop1 ro
-		//29 1 252:0 / / rw,relatime shared:1 - ext4 /dev/mapper/vg-root rw
-		if len(fields) < LenFieldOfSelfMountInfo {
-			continue
-		}
-		//continue if the third element is great than one char
-		if len(fields[indexPath]) > 1 {
-			continue
-		}
-		//continue if the filesystem is not ext4
-		if fields[indexFileType] != "ext4" {
-			continue
-		}
-		//continue if the device is a loop device
-		if strings.Contains(fields[indexDevice], "loop") {
-			continue
-		}
-		mountPoint := fields[indexMountPoint]
-		mountID := fields[indexMountID]
-		//whether a device is lvm
-		if strings.Contains(fields[indexDevice], "/dev/mapper") {
-			name, err := os.Readlink(fields[indexDevice])
-			if err != nil {
-				logger.Error("read_volumes_for_lvm", name, err)
-				return nil
-			}
-			name = strings.Replace(name, "..", "/dev", 1)
-			fields[indexDevice] = name
-		}
-		if value, exist := mountInfoByDevice[fields[indexDevice]]; exist {
-			srcMountID, err := strconv.Atoi(value.MountID)
-			if err != nil {
-				continue
-			}
-			currentMountID, err := strconv.Atoi(fields[0])
-			if err != nil {
-				continue
-			}
-			if currentMountID > srcMountID {
-				mountPoint = value.MountPoint
-				mountID = value.MountID
-			}
-		}
-		mountInfoByDevice[fields[indexDevice]] = volumeAndMountPoint{
-			MountPoint: mountPoint,
-			MountID:    mountID,
-		}
-	}
-	return mountInfoByDevice
-
-}
-
-func supplementVolume(files []fs.FileInfo, mountInfoByDevice map[string]volumeAndMountPoint) (map[string]volumeAndMountPoint, error) {
-	var volumesByDevice map[string]volumeAndMountPoint
-	volumesByDevice = make(map[string]volumeAndMountPoint)
-	for _, v := range files {
-		name, err := os.Readlink(filepath.Join("/dev/disk/by-uuid/", v.Name()))
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			logger.Error("read_volumes", name, err)
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
-		}
-		name = strings.Replace(name, "../..", "/dev", 1)
-		if value, exist := mountInfoByDevice[name]; exist {
-			volumesByDevice[name] = volumeAndMountPoint{
-				VolumeUUID: v.Name(),
-				MountPoint: value.MountPoint,
-				MountID:    value.MountID,
-			}
-		}
-	}
-	return volumesByDevice, nil
-}
-
-func UmountAllVolumes() error {
-	entries, err := os.ReadDir(PathPrefix)
-	if err != nil {
-		return err
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		logger.Error("mount_query_home_failed", os.Getuid(), err)
-		return err
-	}
-	openfde := filepath.Join(home, "openfde")
-	syscall.Setreuid(-1, 0)
-	syscall.Unmount(openfde, 0)
-	for _, volume := range entries {
-		if !volume.IsDir() {
-			continue
-		}
-		path := PathPrefix + volume.Name()
-		err = syscall.Unmount(path, 0)
-		if err != nil {
-			logger.Error("umount_volumes", path, err)
-			os.Remove(path)
-		}
-	}
-	return nil
-}
-
 var _version_ = "v0.1"
 var _tag_ = "v0.1"
 var _date_ = "20231001"
-
-func getStatus() (string, error) {
-	if _, err := os.Stat("/usr/sbin/getstatus"); os.IsNotExist(err) {
-		logger.Info("ptfs_mount_get_status", "getstatus is not exist")
-		return "", nil
-	}
-	cmd := exec.Command("getstatus")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(output), nil
-}
-
-func setSoftModeDepend(status string) error {
-	if len(status) == 0 {
-		logger.Info("ptfs_mount_get_status", "status is empty")
-		return nil
-	}
-	lines := strings.Split(status, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "KySec status:") {
-			fields := strings.Fields(line)
-			if len(fields) >= 3 {
-				status := fields[2]
-				if status == "enabled" {
-					cmd := exec.Command("setstatus", "softmode")
-					err := cmd.Run()
-					if err != nil {
-						logger.Error("ptfs_mount_set_status", nil, err)
-						return err
-					}
-					logger.Info("ptfs_mount_set_status", "Status set to softmode")
-				} else {
-					logger.Info("ptfs_mount_set_softmode", "already_softmode")
-				}
-				break
-			}
-		}
-	}
-	return nil
-}
-
-const propfile = "/var/lib/waydroid/waydroid_base.prop"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
 		logrotate, setNavigationMode, install, restart bool
 	var navi_mode string
+	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
 	flag.BoolVar(&version, "v", false, "version")
 	flag.BoolVar(&umount, "u", false, "umount volumes")
@@ -354,7 +38,7 @@ func main() {
 	flag.BoolVar(&ptfsmount, "pm", false, "personal fusing mount")
 	flag.BoolVar(&ptfsumount, "pu", false, "personal fusing umount")
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
-	flag.BoolVar(&softmode, "s", false, "set soft mode for kylinos")
+	flag.BoolVar(&softmode, "s", false, "off exectl for kylinos")
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
@@ -363,6 +47,7 @@ func main() {
 	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
 	flag.BoolVar(&install, "install", false, "install openfde deb")
 	flag.BoolVar(&restart, "restart", false, "restart fde  after install")
+	flag.IntVar(&density, "density", 0, "set screen density (-density 160 or 256)")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
@@ -393,7 +78,7 @@ func main() {
 		}
 	}
 
-	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode {
+	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode || density > 0 {
 		err := syscall.Setreuid(0, 0)
 		if err != nil {
 			logger.Error("setreuid_error", nil, err)
@@ -403,9 +88,17 @@ func main() {
 			setMode(NavigateionMode(navi_mode))
 			return
 		}
+		if density > 0 {
+			setDensity(density)
+			return
+		}
 		readAospVersion()
 		if len(aospVersion) == 0 {
 			logger.Error("read_aosp_version", nil, errors.New("aosp ver empty"))
+			if ptfsumount {
+				logger.Warn("read_aosp_version_failed", "aosp version is empty, but continue to umount ptfs")
+				personal_fusing.UmountPtfs("")
+			}
 			os.Exit(1)
 		}
 		if aospVersion == "11" {
@@ -418,7 +111,7 @@ func main() {
 	switch {
 	case logrotate:
 		{
-			logrotateFDE()
+			logger.Rotate()
 			return
 		}
 	case pwrite:
@@ -436,10 +129,10 @@ func main() {
 		{
 			status, err := getStatus()
 			if err != nil {
-				logger.Error("soft_mode_set", nil, err)
+				logger.Error("exectl_off_set", nil, err)
 				return
 			}
-			if err := setSoftModeDepend(status); err != nil {
+			if err := setExeCtlOff(status); err != nil {
 				return
 			}
 			return
@@ -455,14 +148,6 @@ func main() {
 		}
 	case ptfsmount:
 		{
-			status, err := getStatus()
-			if err != nil {
-				logger.Error("ptfs_mount_get_status", nil, err)
-				return
-			}
-			if err := setSoftModeDepend(status); err != nil {
-				return
-			}
 			personal_fusing.MountPtfs(aospVersion)
 			return
 		}

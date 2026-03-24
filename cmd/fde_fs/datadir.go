@@ -34,6 +34,7 @@ func MKDataDir(aospVer string) (media0, homeOpenfde string, err error) {
 		logger.Error("mount_query_home_failed", os.Getuid(), err)
 		return
 	}
+	//mkdir ~/.local/share/openfdexx/media/0
 	origin := filepath.Join(home, localShareOpenfde)
 	media0 = filepath.Join(origin, "/media/0")
 	_, err = os.Stat(media0)
@@ -59,6 +60,37 @@ func MKDataDir(aospVer string) (media0, homeOpenfde string, err error) {
 		}
 	}
 
+	//mkdir ~/.local/share/openfdexx/icons
+	iconsPath := filepath.Join(origin, "icons")
+	_, err = os.Stat(iconsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.Mkdir(iconsPath, os.ModeDir+0775)
+			if err != nil {
+				logger.Error("mkdir_icons", iconsPath, err)
+				return
+			}
+			err = os.Chown(iconsPath, os.Getuid(), os.Getgid())
+			if err != nil {
+				logger.Error("chown_icons", iconsPath, err)
+				return
+			}
+		}
+	}
+
+	//mkdir ~/var/lib/fde/volumes for mounting volumes
+	_, err = os.Stat(VolumesPathPrefix)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(VolumesPathPrefix, os.ModeDir+0755)
+			if err != nil {
+				logger.Error("mount_mkdir_for_volumes", VolumesPathPrefix, err)
+				return
+			}
+		}
+	}
+
+	//mkdir ~/openfde
 	homeOpenfde = filepath.Join(home, "openfde")
 	_, err = os.Stat(homeOpenfde)
 	if err != nil {

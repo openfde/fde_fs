@@ -16,16 +16,22 @@
 package main
 
 import (
+	"fde_fs/logger"
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"strconv"
-	"fde_fs/logger"
+	"syscall"
 
 	"github.com/winfsp/cgofuse/examples/shared"
 	"github.com/winfsp/cgofuse/fuse"
 )
+
+/*mount linux personal dir to android personal dir,
+when file created on the andorid side, it will chown to the father dir's ownes, the root of this mounts, which is the linux user.
+so the file can be accessed by  the linux side;
+then on the android side， the directory permission is controlled by the media provider through the fuse.
+*/
 
 func trace(vals ...interface{}) func(vals ...interface{}) {
 	uid, gid, _ := fuse.Getcontext()
@@ -46,8 +52,8 @@ var (
 
 type Ptfs struct {
 	fuse.FileSystemBase
-	ns       uint64
-	root     string
+	ns   uint64
+	root string
 }
 
 func (self *Ptfs) Init() {

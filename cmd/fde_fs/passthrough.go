@@ -27,6 +27,44 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 )
 
+func validPermR(uid, duid, gid, dgid uint32, perm uint32) bool {
+	var own uint32
+	if uid == duid {
+		own = (perm & uint32(0b111000000)) >> 6
+		if own >= 4 {
+			return true
+		}
+	} else if gid == dgid {
+		own = (perm & uint32(0b000111000)) >> 3
+	} else {
+		own = perm & uint32(0b000000111)
+	}
+
+	if own >= 4 {
+		return true
+	}
+	return false
+}
+
+func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
+	var own uint32
+	if uid == duid {
+		own = (perm & uint32(0b111000000)) >> 6
+		if own >= 4 {
+			return true
+		}
+	} else if gid == dgid {
+		own = (perm & uint32(0b000111000)) >> 3
+	} else {
+		own = perm & uint32(0b000000111)
+	}
+
+	if (own & 1 << 1) == 2 {
+		return true
+	}
+	return false
+}
+
 func trace(vals ...interface{}) func(vals ...interface{}) {
 	uid, gid, _ := fuse.Getcontext()
 	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
@@ -382,11 +420,11 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 		//read the permission allowd list to decide whether the uid have permission to do
 
 	}
-	//avoid the recursive loop of the /volumes directory
-	if self.original == "/" {
+	//avoid the recursive loop of the /var/lib/fde/volumes directory
+	if self.original == "/var/lib/fde/" {
 		list := strings.Split(path, "/")
 		if len(list) >= 2 {
-			if list[1] == FSPrefix {
+			if list[len(list)-1] == FSPrefix {
 				return -int(syscall.ENOENT), 1
 			}
 		}
@@ -415,7 +453,7 @@ func (self *Ptfs) Readdir(path string,
 	}
 	nams = append([]string{".", ".."}, nams...)
 	for _, name := range nams {
-		if self.original == "/" {
+		if self.original == "/var/lib/fde/" {
 			if name == FSPrefix {
 				continue
 			}

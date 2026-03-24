@@ -2,14 +2,14 @@ package personal_fusing
 
 import (
 	"context"
-	"os/signal"
-	"fde_fs/inotify"
 	"errors"
+	"fde_fs/inotify"
 	"fde_fs/logger"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -21,28 +21,30 @@ const Media0 = "/media/0/"
 const LocalShareOpenfde = ".local/share/openfde"
 
 func UmountPtfs(aospVer string) error {
-	localShareOpenfde := LocalShareOpenfde + aospVer
-	localMedia0 := filepath.Join(localShareOpenfde, Media0)
-	home, err := os.UserHomeDir()
-	if err != nil {
-		logger.Error("mount_query_home_failed", os.Getuid(), err)
-		return err
-	}
-	androidDir := filepath.Join(home, filepath.Join(localMedia0))
-	syscall.Setreuid(-1, 0)
-	umountsuccess:=true
-	for _, dir := range androidDirList {
-		logger.Info("umount_volumes", filepath.Join(androidDir, dir))
-		err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
+	if len(aospVer) != 0 {
+		localShareOpenfde := LocalShareOpenfde + aospVer
+		localMedia0 := filepath.Join(localShareOpenfde, Media0)
+		home, err := os.UserHomeDir()
 		if err != nil {
-			logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
-			umountsuccess= false
+			logger.Error("mount_query_home_failed", os.Getuid(), err)
+			return err
+		}
+		androidDir := filepath.Join(home, filepath.Join(localMedia0))
+		syscall.Setreuid(-1, 0)
+		umountsuccess := true
+		for _, dir := range androidDirList {
+			logger.Info("umount_volumes", filepath.Join(androidDir, dir))
+			err = syscall.Unmount(filepath.Join(androidDir, dir), 0)
+			if err != nil {
+				logger.Error("umount_volumes", filepath.Join(androidDir, dir), err)
+				umountsuccess = false
+			}
+		}
+		if umountsuccess {
+			return nil
 		}
 	}
-	if umountsuccess {
-		return nil
-	}
-	logger.Info("kill_fde_ptfs",nil)
+	logger.Info("kill_fde_ptfs", nil)
 
 	// Find process "fde_fs -pm" via ps and send SIGTERM (15)
 	out, err := exec.Command("ps", "-eo", "pid,command").Output()
@@ -162,24 +164,36 @@ func mountFdePtfs(sourcePath, targetPath string) error {
 	return nil
 }
 
-func ExecuteWaydroidShell(command string) (string, error) {
-	cmd := exec.Command("waydroid", "shell")
-	cmd.Stdin = strings.NewReader(command)
-	output, err := cmd.Output()
+func queryPassThroughForWaydroid() bool {
+	out, err := exec.Command("ps", "-eo", "pid,command").Output()
 	if err != nil {
-		return "", err
-	}
-	return string(output), nil
-}
-
-func queryPassThroughInWaydroid() bool {
-	command := "cat /proc/mounts |grep /mnt/pass_through"
-	output, err := ExecuteWaydroidShell(command)
-	if err != nil {
-		logger.Error("execute_waydroid_shell", nil, err)
+		logger.Error("ps_list_failed", nil, err)
 		return false
 	}
-	if len(output) > 0 {
+	var initPid string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 2 {
+			continue
+		}
+		if fields[1] == "/system/bin/init" {
+			if strings.Contains(line, "second_stage") {
+				initPid = fields[0]
+				break
+			}
+		}
+	}
+	if initPid == "" {
+		logger.Error("init_second_stage_not_found", nil, nil)
+		return false
+	}
+	mountsPath := fmt.Sprintf("/proc/%s/mounts", initPid)
+	mountsBytes, err := ioutil.ReadFile(mountsPath)
+	if err != nil {
+		logger.Error("read_init_mounts_failed", mountsPath, err)
+		return false
+	}
+	if strings.Contains(string(mountsBytes), "/mnt/pass_through/0/emulated") {
 		return true
 	}
 	return false
@@ -218,11 +232,10 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 		out, err := exec.Command("ps", "-eo", "pid,ppid,comm").Output()
 		if err != nil {
 			logger.Error("ps_list_failed", nil, err)
-			return false,0, err
+			return false, 0, err
 		}
 		have_proc_fde_ptfs := false
 		for _, line := range strings.Split(string(out), "\n") {
-			logger.Info("_filter_proc",line)
 			fields := strings.Fields(strings.TrimSpace(line))
 			if len(fields) < 3 {
 				continue
@@ -236,8 +249,8 @@ func getPtfs(ptfsCount int) (bool, int, error) {
 			}
 			if fields[2] == "fde_ptfs" {
 				have_proc_fde_ptfs = true
-				if  ppid == 1 {
-					return false, ptfsCount,nil
+				if ppid == 1 {
+					return false, ptfsCount, nil
 				}
 			}
 		}
@@ -256,7 +269,7 @@ const applicationsDir = "/usr/share/applications"
 func MountPtfs(aospVer string) error {
 	sigCh := make(chan os.Signal, 1)
 	waitingCh := make(chan struct{})
-	signal.Notify(sigCh, syscall.SIGHUP,syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-sigCh
 		logger.Info("sigterm_received", "umount ptfs mount")
@@ -286,9 +299,9 @@ func MountPtfs(aospVer string) error {
 			case <-ticker.C:
 				logger.Info("received ticker timeout", "not mounted")
 				passThroughTimeoutChan <- struct{}{}
-				return 
+				return
 			default:
-				if queryPassThroughInWaydroid() {
+				if queryPassThroughForWaydroid() {
 					passThroughChan <- struct{}{}
 					return
 				}
@@ -298,9 +311,10 @@ func MountPtfs(aospVer string) error {
 	}()
 	select {
 	case <-passThroughChan:
-	case <-passThroughTimeoutChan: {
-		logger.Info("query_pass_through_tiemout_container", "not mounted")
-		return errors.New("timeout")
+	case <-passThroughTimeoutChan:
+		{
+			logger.Info("query_pass_through_tiemout_container", "not mounted")
+			return errors.New("timeout")
 		}
 	}
 	dirsExistChan := make(chan struct{})
@@ -339,7 +353,7 @@ func MountPtfs(aospVer string) error {
 		logger.Error("get_ptfs_error", nil, err)
 		return err
 	}
-	logger.Info("after_get_ptfs_mounted",nil)
+	logger.Info("after_get_ptfs_mounted", nil)
 	if mounted {
 		return nil
 	} else {
@@ -360,7 +374,7 @@ func MountPtfs(aospVer string) error {
 			// go inotify.WatchDirRecursive(ctx, source, filepath.Base(target), inotify.AnyFileNotifyType)
 			defer wg.Done()
 
-			logger.Info("mount_ptfs",source +target)
+			logger.Info("mount_ptfs", source+target)
 			err := mountFdePtfs(source, target)
 			if err != nil {
 				logger.Error("mount_ptfsfuse_error", err, nil)
@@ -370,7 +384,7 @@ func MountPtfs(aospVer string) error {
 	}
 
 	go func() {
-		wg.Wait()        //waitting for all goroutine
+		wg.Wait()               //waitting for all goroutine
 		waitingCh <- struct{}{} //unlock the main goroutine
 	}()
 	<-waitingCh //block here
