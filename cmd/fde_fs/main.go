@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
@@ -10,9 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -26,7 +22,7 @@ var _date_ = "20231001"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode, install, restart bool
+		logrotate, setNavigationMode, install bool
 	var navi_mode string
 	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
@@ -55,7 +51,7 @@ func main() {
 		if len(installPath) > 0 {
 			syscall.Setreuid(0, 0)
 			err := installDEB(installPath)
-			pkilllCmd := exec.Command("pkill", "-f", "fde_utils -show")
+			pkilllCmd := exec.Command("pkill", "-f", "fde_ctrl -show")
 			defer func() {
 				pkillCmd.Run()
 			}()
