@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -51,8 +52,8 @@ func main() {
 		if len(installPath) > 0 {
 			syscall.Setreuid(0, 0)
 			err := installDEB(installPath)
-			pkilllCmd := exec.Command("pkill", "-f", "fde_ctrl -show")
 			defer func() {
+				pkilllCmd := exec.Command("pkill", "-f", "fde_ctrl -show")
 				pkillCmd.Run()
 			}()
 			if err != nil {
