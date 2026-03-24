@@ -51,10 +51,8 @@ func main() {
 		if len(installPath) > 0 {
 			syscall.Setreuid(0, 0)
 			err := installDEB(installPath)
-			defer func() {
-				pkillCmd := exec.Command("pkill", "-f", "/usr/bin/fde_ctrl -show")
-				pkillCmd.Run()
-			}()
+			pkillCmd := exec.Command("pkill", "-f", "/usr/bin/fde_ctrl -show")
+			pkillCmd.Run()
 			if err != nil {
 				logger.Error("install_deb_failed", installPath, err)
 				return
@@ -62,6 +60,9 @@ func main() {
 
 			_ = syscall.Setreuid(LinuxUID, 0)
 			cmd := exec.Command("fde_utils", "start")
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
 			err = cmd.Run()
 			if err != nil {
 				logger.Error("fde_utils_start_failed", nil, err)
