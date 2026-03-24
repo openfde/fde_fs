@@ -46,7 +46,6 @@ func main() {
 	var installPath string
 	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
 	flag.BoolVar(&install, "install", false, "install openfde deb")
-	flag.BoolVar(&restart, "restart", false, "restart fde  after install")
 	flag.IntVar(&density, "density", 0, "set screen density (-density 160 or 256)")
 	flag.Parse()
 
@@ -61,13 +60,12 @@ func main() {
 				logger.Error("install_deb_failed", installPath, err)
 				os.Exit(1)
 			}
-			if restart {
-				_ = syscall.Setreuid(LinuxUID, 0)
-				cmd := exec.Command("fde_utils", "start")
-				err = cmd.Run()
-				if err != nil {
-					logger.Error("fde_utils_start_failed", nil, err)
-				}
+			
+			_ = syscall.Setreuid(LinuxUID, 0)
+			cmd := exec.Command("fde_utils", "start")
+			err = cmd.Run()
+			if err != nil {
+				logger.Error("fde_utils_start_failed", nil, err)
 			}
 			os.Exit(0)
 		} else {
