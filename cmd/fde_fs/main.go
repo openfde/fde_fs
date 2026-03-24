@@ -52,7 +52,7 @@ func main() {
 			syscall.Setreuid(0, 0)
 			err := installDEB(installPath)
 			defer func() {
-				pkillCmd := exec.Command("pkill", "-f", "fde_ctrl -show")
+				pkillCmd := exec.Command("pkill", "-f", "/usr/bin/fde_ctrl -show")
 				pkillCmd.Run()
 			}()
 			if err != nil {
