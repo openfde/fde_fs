@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fde_fs/cmd/fde_fs/personal_fusing"
 	"fde_fs/logger"
-	"fde_fs/logo"
 	"flag"
 	"fmt"
 	"os"
@@ -60,7 +59,7 @@ func main() {
 				logger.Error("install_deb_failed", installPath, err)
 				os.Exit(1)
 			}
-			
+
 			_ = syscall.Setreuid(LinuxUID, 0)
 			cmd := exec.Command("fde_utils", "start")
 			err = cmd.Run()
