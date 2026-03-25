@@ -57,16 +57,13 @@ func main() {
 				logger.Error("install_deb_failed", installPath, err)
 				return
 			}
-
+			os.Remove(installPath)
 			_ = syscall.Setreuid(LinuxUID, 0)
 			cmd := exec.Command("fde_utils", "start")
 			cmd.SysProcAttr = &syscall.SysProcAttr{
 				Setsid: true,
 			}
-			err = cmd.Run()
-			if err != nil {
-				logger.Error("fde_utils_start_failed", nil, err)
-			}
+			cmd.Start()
 			return
 		} else {
 			fmt.Println("please provide the deb file path with -path")
