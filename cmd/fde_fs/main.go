@@ -22,7 +22,7 @@ var _date_ = "20231001"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode bool
+		logrotate, setNavigationMode, install bool
 	var navi_mode string
 	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
@@ -38,11 +38,38 @@ func main() {
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
 	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(2) or 3btn(0)")
+	var installPath string
+	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
+	flag.BoolVar(&install, "install", false, "install openfde deb")
 	flag.IntVar(&density, "density", 0, "set screen density (-density 160 or 256)")
 	flag.Parse()
 
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
+
+	if install {
+		if len(installPath) > 0 {
+			syscall.Setreuid(0, 0)
+			err := installDEB(installPath)
+			pkillCmd := exec.Command("pkill", "-f", "/usr/bin/fde_ctrl -show")
+			pkillCmd.Run()
+			if err != nil {
+				logger.Error("install_deb_failed", installPath, err)
+				return
+			}
+			os.Remove(installPath)
+			_ = syscall.Setreuid(LinuxUID, 0)
+			cmd := exec.Command("fde_utils", "start")
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
+			cmd.Start()
+			return
+		} else {
+			fmt.Println("please provide the deb file path with -path")
+			os.Exit(1)
+		}
+	}
 
 	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode || density > 0 {
 		err := syscall.Setreuid(0, 0)
