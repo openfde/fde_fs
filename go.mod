@@ -13,3 +13,5 @@ require (
 )
 
 require github.com/warlice/lumberjack v0.0.0-20260306103047-e57fea6e4fa6
+
+replace github.com/warlice/lumberjack v0.0.0-20260306103047-e57fea6e4fa6 => ./lumberjack
