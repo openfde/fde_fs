@@ -309,10 +309,16 @@ func (self *Ptfs) Readdir(path string,
 		defer f.Close()
 		file = f
 	} else {
-		file = os.NewFile(uintptr(fh), path)
+		dupFd, e := syscall.Dup(int(fh))
+		if nil != e {
+			return errno(e)
+		}
+		file = os.NewFile(uintptr(dupFd), path)
 		if nil == file {
+			syscall.Close(dupFd)
 			return -int(syscall.EBADF)
 		}
+		defer file.Close()
 	}
 
 	nams, e := file.Readdirnames(256)
