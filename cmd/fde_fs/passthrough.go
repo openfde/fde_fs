@@ -18,6 +18,7 @@ package main
 import (
 	"fde_fs/logger"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,7 @@ func validPermW(uid, duid, gid, dgid uint32, perm uint32) bool {
 }
 
 func trace(vals ...interface{}) func(vals ...interface{}) {
+	return func(vals ...interface{}) {}
 	uid, gid, _ := fuse.Getcontext()
 	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
 }
@@ -206,6 +208,9 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 
 func (self *Ptfs) Unlink(path string) (errc int) {
 	defer trace(path)(&errc)
+	if self.isHostNS() {
+		return -int(syscall.EACCES)
+	}
 	path = filepath.Join(self.root, path)
 	return errno(syscall.Unlink(path))
 }
@@ -294,11 +299,16 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 	return self.open(path, flags, mode)
 }
 
+
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
 	var rpath string
+	//decide whether the home/xxx/openfde being able to accessed by the current user, 
 	if self.isHostNS() {
-		//accessing openfde
+		//accessing /home/xx/openfde
+		//if the path is under openfde, should check the permission based on the real path of openfde, 
+		// not the path with openfde prefix, because the permission of the file with openfde prefix is
+		//  based on the real file without openfde prefix
 		if strings.Contains(self.original, LocalOpenfde) {
 			dirList := strings.Split(self.original, LocalOpenfde)
 			if len(dirList) >= 2 {
@@ -420,11 +430,11 @@ func (self *Ptfs) Opendir(path string) (errc int, fh uint64) {
 		//read the permission allowd list to decide whether the uid have permission to do
 
 	}
-	//avoid the recursive loop of the /var/lib/fde/volumes directory
-	if self.original == "/var/lib/fde/" {
-		list := strings.Split(path, "/")
-		if len(list) >= 2 {
-			if list[len(list)-1] == FSPrefix {
+	// Avoid recursive loop only when passthrough source is '/'.
+	if self.original == "/" {
+		if strings.Contains(path, VolumesPathPrefix) {
+			list := strings.Split(path, "/")
+			if len(list) >= 5 && list[4] == FSPrefix {
 				return -int(syscall.ENOENT), 1
 			}
 		}
@@ -441,21 +451,44 @@ func (self *Ptfs) Readdir(path string,
 	ofst int64,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
-	path = filepath.Join(self.original, path)
-	file, e := os.Open(path)
-	if nil != e {
+	path = filepath.Join(self.root, path)
+
+	var file *os.File
+	if ^uint64(0) == fh {
+		f, e := os.Open(path)
+		if nil != e {
+			return errno(e)
+		}
+		defer f.Close()
+		file = f
+	} else {
+		dupFd, e := syscall.Dup(int(fh))
+		if nil != e {
+			return errno(e)
+		}
+		file = os.NewFile(uintptr(dupFd), path)
+		if nil == file {
+			syscall.Close(dupFd)
+			return -int(syscall.EBADF)
+		}
+		defer file.Close()
+	}
+
+	nams, e := file.Readdirnames(256)
+	if nil != e && e != io.EOF {
 		return errno(e)
 	}
-	defer file.Close()
-	nams, e := file.Readdirnames(0)
-	if nil != e {
-		return errno(e)
+
+	if 0 == ofst {
+		nams = append([]string{".", ".."}, nams...)
 	}
-	nams = append([]string{".", ".."}, nams...)
 	for _, name := range nams {
-		if self.original == "/var/lib/fde/" {
-			if name == FSPrefix {
-				continue
+		if self.original == "/" {
+			if strings.Contains(path, VolumesPathPrefix) {
+				list := strings.Split(path, "/")
+				if len(list) >= 5 && list[4] == FSPrefix {
+					continue
+				}
 			}
 		}
 		if !fill(name, nil, 0) {
