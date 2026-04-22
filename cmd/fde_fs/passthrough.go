@@ -208,7 +208,7 @@ func (self *Ptfs) Mkdir(path string, mode uint32) (errc int) {
 
 func (self *Ptfs) Unlink(path string) (errc int) {
 	defer trace(path)(&errc)
-	if self.isHostNS() {
+	if self.isHostNS() && !self.isOpenfdeFileSystem() {
 		return -int(syscall.EACCES)
 	}
 	path = filepath.Join(self.root, path)
@@ -299,14 +299,13 @@ func (self *Ptfs) Create(path string, flags int, mode uint32) (errc int, fh uint
 	return self.open(path, flags, mode)
 }
 
-
 func (self *Ptfs) Open(path string, flags int) (errc int, fh uint64) {
 	defer trace(path, flags)(&errc, &fh)
 	var rpath string
-	//decide whether the home/xxx/openfde being able to accessed by the current user, 
+	//decide whether the home/xxx/openfde being able to accessed by the current user,
 	if self.isHostNS() {
 		//accessing /home/xx/openfde
-		//if the path is under openfde, should check the permission based on the real path of openfde, 
+		//if the path is under openfde, should check the permission based on the real path of openfde,
 		// not the path with openfde prefix, because the permission of the file with openfde prefix is
 		//  based on the real file without openfde prefix
 		if strings.Contains(self.original, LocalOpenfde) {
