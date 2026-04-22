@@ -18,6 +18,7 @@ package main
 import (
 	"fde_fs/logger"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +35,7 @@ then on the android side， the directory permission is controlled by the media 
 */
 
 func trace(vals ...interface{}) func(vals ...interface{}) {
+	return func(vals ...interface{}) {}
 	uid, gid, _ := fuse.Getcontext()
 	return shared.Trace(1, fmt.Sprintf("[uid=%v,gid=%v]", uid, gid), vals...)
 }
@@ -62,6 +64,7 @@ func (self *Ptfs) Init() {
 	if nil == e {
 		self.root = "./"
 	}
+
 }
 
 func (self *Ptfs) isHostNS() bool {
@@ -253,7 +256,7 @@ func (self *Ptfs) Truncate(path string, size int64, fh uint64) (errc int) {
 }
 
 func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
-	defer trace(path, buff, ofst, fh)(&n)
+	defer trace(path, len(buff), ofst, fh)(&n)
 	n, e := syscall.Pread(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
@@ -262,7 +265,7 @@ func (self *Ptfs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) 
 }
 
 func (self *Ptfs) Write(path string, buff []byte, ofst int64, fh uint64) (n int) {
-	defer trace(path, buff, ofst, fh)(&n)
+	defer trace(path, len(buff), ofst, fh)(&n)
 	n, e := syscall.Pwrite(int(fh), buff, ofst)
 	if nil != e {
 		return errno(e)
@@ -296,16 +299,36 @@ func (self *Ptfs) Readdir(path string,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
 	path = filepath.Join(self.root, path)
-	file, e := os.Open(path)
-	if nil != e {
+
+	var file *os.File
+	if ^uint64(0) == fh {
+		f, e := os.Open(path)
+		if nil != e {
+			return errno(e)
+		}
+		defer f.Close()
+		file = f
+	} else {
+		dupFd, e := syscall.Dup(int(fh))
+		if nil != e {
+			return errno(e)
+		}
+		file = os.NewFile(uintptr(dupFd), path)
+		if nil == file {
+			syscall.Close(dupFd)
+			return -int(syscall.EBADF)
+		}
+		defer file.Close()
+	}
+
+	nams, e := file.Readdirnames(256)
+	if nil != e && e != io.EOF {
 		return errno(e)
 	}
-	defer file.Close()
-	nams, e := file.Readdirnames(0)
-	if nil != e {
-		return errno(e)
+
+	if 0 == ofst {
+		nams = append([]string{".", ".."}, nams...)
 	}
-	nams = append([]string{".", ".."}, nams...)
 	for _, name := range nams {
 		if !fill(name, nil, 0) {
 			break
