@@ -101,4 +101,6 @@ func setDensity(density int) {
 	if len(output) > 0 {
 		fmt.Println("cmd output：", string(output))
 	}
+	// set a default dep for the setting app, setting app will use this as the middle default dpi
+	exec.Command("waydroid", "shell", "setprop", "FDE_DPI_DEFAULT", strconv.Itoa(density))
 }
