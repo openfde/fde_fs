@@ -22,7 +22,7 @@ var _date_ = "20231001"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode, install bool
+		logrotate, setNavigationMode, install, sleep bool
 	var navi_mode string
 	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
@@ -30,6 +30,7 @@ func main() {
 	flag.BoolVar(&umount, "u", false, "umount volumes")
 	flag.BoolVar(&help, "h", false, "help")
 	flag.BoolVar(&debug, "d", false, "debug")
+	flag.BoolVar(&sleep, "sleep", false, "system fall asleep")
 	flag.BoolVar(&ptfsmount, "pm", false, "personal fusing mount")
 	flag.BoolVar(&ptfsumount, "pu", false, "personal fusing umount")
 	flag.BoolVar(&ptfsquery, "pq", false, "personal fusing query")
@@ -71,10 +72,19 @@ func main() {
 		}
 	}
 
-	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode || density > 0 {
+	if ptfsquery || ptfsmount || ptfsumount || mount || setNavigationMode || density > 0 || sleep {
 		err := syscall.Setreuid(0, 0)
 		if err != nil {
 			logger.Error("setreuid_error", nil, err)
+			return
+		}
+		if sleep {
+			cmd := exec.Command("systemctl", "suspend")
+			returnErr := cmd.Run()
+			if returnErr != nil {
+				logger.Error("system_sleep_failed", nil, returnErr)
+				return
+			}
 			return
 		}
 		if setNavigationMode {
