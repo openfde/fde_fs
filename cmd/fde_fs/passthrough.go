@@ -480,6 +480,7 @@ func (self *Ptfs) Readdir(path string,
 
 	if 0 == ofst {
 		nams = append([]string{".", ".."}, nams...)
+		ofst = 2
 	}
 	for _, name := range nams {
 		if self.original == "/" {
@@ -490,7 +491,8 @@ func (self *Ptfs) Readdir(path string,
 				}
 			}
 		}
-		if !fill(name, nil, 0) {
+		ofst++
+		if !fill(name, nil, ofst) {
 			break
 		}
 	}
