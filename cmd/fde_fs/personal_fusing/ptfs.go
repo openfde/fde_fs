@@ -371,7 +371,6 @@ func MountPtfs(aospVer string) error {
 					logger.Error("goroutine_panic_recovered", r, nil)
 				}
 			}()
-			// go inotify.WatchDirRecursive(ctx, source, filepath.Base(target), inotify.AnyFileNotifyType)
 			defer wg.Done()
 
 			logger.Info("mount_ptfs", source+target)

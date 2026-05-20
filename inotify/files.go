@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fde_fs/logger"
-	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,15 +16,23 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func watchDirectory(path, fileType string, addevents, delevents chan string) {
+func watchDirectory(ctx context.Context, path, fileType string, addevents, delevents chan string) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
-		log.Fatalf("Failed to initialize inotify: %v", err)
+		logger.Error("inotify_init_error", path, err)
+		return
 	}
 	defer unix.Close(fd)
+
+	go func() {
+		<-ctx.Done()
+		_ = unix.Close(fd)
+	}()
+
 	wd, err := unix.InotifyAddWatch(fd, path, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_DELETE|unix.IN_MOVED_FROM)
 	if err != nil {
-		log.Fatalf("Failed to add inotify watch: %v", err)
+		logger.Error("inotify_add_watch_error", path, err)
+		return
 	}
 	defer unix.InotifyRmWatch(fd, uint32(wd))
 
@@ -34,29 +40,47 @@ func watchDirectory(path, fileType string, addevents, delevents chan string) {
 	for {
 		n, err := unix.Read(fd, buf)
 		if err != nil {
-			log.Fatalf("Failed to read inotify events: %v", err)
+			if err == unix.EINTR {
+				continue
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			logger.Error("inotify_read_error", path, err)
+			return
 		}
 
 		var offset uint32
-		for offset < uint32(n) {
+		for offset+unix.SizeofInotifyEvent <= uint32(n) {
 			event := (*unix.InotifyEvent)(unsafe.Pointer(&buf[offset]))
+			eventSize := uint32(unix.SizeofInotifyEvent + event.Len)
+			if offset+eventSize > uint32(n) {
+				break
+			}
 			name := strings.TrimRight(string(buf[offset+unix.SizeofInotifyEvent:offset+unix.SizeofInotifyEvent+event.Len]), "\x00")
 			fullPath := filepath.Join(path, name)
 			if fileType != AnyFileType {
 				if !strings.HasSuffix(name, fileType) {
+					offset += eventSize
 					continue
 				}
 			}
 
 			if event.Mask&unix.IN_CREATE != 0 || event.Mask&unix.IN_MOVED_TO != 0 {
-				message := fmt.Sprintf("%s", fullPath)
-				addevents <- message
+				select {
+				case addevents <- fullPath:
+				case <-ctx.Done():
+					return
+				}
 			} else if event.Mask&unix.IN_MOVED_FROM != 0 || event.Mask&unix.IN_DELETE != 0 {
-				message := fmt.Sprintf("%s", fullPath)
-				delevents <- message
+				select {
+				case delevents <- fullPath:
+				case <-ctx.Done():
+					return
+				}
 			}
 
-			offset += unix.SizeofInotifyEvent + event.Len
+			offset += eventSize
 		}
 	}
 }
@@ -83,7 +107,7 @@ func WatchDir(ctx context.Context, dir, notifyType, fileType string) {
 
 	addevents := make(chan string)
 	delevents := make(chan string)
-	go watchDirectory(dir, fileType, addevents, delevents)
+	go watchDirectory(ctx, dir, fileType, addevents, delevents)
 	for {
 		select {
 		case event := <-addevents:
