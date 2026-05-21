@@ -451,48 +451,26 @@ func (self *Ptfs) Readdir(path string,
 	fh uint64) (errc int) {
 	defer trace(path, fill, ofst, fh)(&errc)
 	path = filepath.Join(self.root, path)
-
-	var file *os.File
-	if ^uint64(0) == fh {
-		f, e := os.Open(path)
-		if nil != e {
-			return errno(e)
-		}
-		defer f.Close()
-		file = f
-	} else {
-		dupFd, e := syscall.Dup(int(fh))
-		if nil != e {
-			return errno(e)
-		}
-		file = os.NewFile(uintptr(dupFd), path)
-		if nil == file {
-			syscall.Close(dupFd)
-			return -int(syscall.EBADF)
-		}
-		defer file.Close()
+	// Read a stable snapshot for this call and use ofst as the next entry index.
+	// This avoids losing entries when fill returns false because of buffer limits.
+	file, e := os.Open(path)
+	if nil != e {
+		return errno(e)
 	}
+	defer file.Close()
 
-	nams, e := file.Readdirnames(256)
+	nams, e := file.Readdirnames(0)
 	if nil != e && e != io.EOF {
 		return errno(e)
 	}
 
-	if 0 == ofst {
-		nams = append([]string{".", ".."}, nams...)
-		ofst = 2
+	entries := append([]string{".", ".."}, nams...)
+	if ofst < 0 {
+		ofst = 0
 	}
-	for _, name := range nams {
-		if self.original == "/" {
-			if strings.Contains(path, VolumesPathPrefix) {
-				list := strings.Split(path, "/")
-				if len(list) >= 5 && list[4] == FSPrefix {
-					continue
-				}
-			}
-		}
-		ofst++
-		if !fill(name, nil, ofst) {
+	for i := int(ofst); i < len(entries); i++ {
+		nextOfst := int64(i + 1)
+		if !fill(entries[i], nil, nextOfst) {
 			break
 		}
 	}
