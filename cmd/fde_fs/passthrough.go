@@ -470,6 +470,14 @@ func (self *Ptfs) Readdir(path string,
 	}
 	for i := int(ofst); i < len(entries); i++ {
 		nextOfst := int64(i + 1)
+		if self.original == "/" {
+			if strings.Contains(path, VolumesPathPrefix) {
+				list := strings.Split(path, "/")
+				if len(list) >= 5 && list[4] == FSPrefix {
+					continue
+				}
+			}
+		}
 		if !fill(entries[i], nil, nextOfst) {
 			break
 		}
