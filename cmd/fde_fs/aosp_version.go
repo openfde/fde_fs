@@ -4,7 +4,6 @@ import (
 	"fde_fs/logger"
 	"os/exec"
 	"regexp"
-	"strings"
 )
 
 var aospVersion string
@@ -21,7 +20,7 @@ func readAospVersion() {
 					aospVersion = "11"
 				}
 			}
-			logger.Info("local_openfde ", matched[0], aospVersion)
+			logger.Info("aosp_version ", aospVersion)
 		}
 	} else {
 		logger.Error("read_local_openfde", "/usr/lib/waydroid/tools/config/__init__.py", err)
