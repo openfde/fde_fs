@@ -22,7 +22,7 @@ var _date_ = "20231001"
 
 func main() {
 	var umount, mount, help, version, debug, ptfsmount, ptfsumount, ptfsquery, softmode, pwrite,
-		logrotate, setNavigationMode, install, sleep bool
+		logrotate, setNavigationMode, install, sleep, aospVersion bool
 	var navi_mode string
 	var density int
 	flag.BoolVar(&mount, "m", false, "mount volumes")
@@ -38,6 +38,7 @@ func main() {
 	flag.BoolVar(&pwrite, "pwrite", false, "pwrite for sysctl")
 	flag.BoolVar(&logrotate, "logrotate", false, "log rotate for /var/log/fde.log")
 	flag.BoolVar(&setNavigationMode, "setnav", false, "set navigation mode")
+	flag.BoolVar(&aospVersion, "aospver", false, "read aosp version")
 	flag.StringVar(&navi_mode, "navmode", "0", "navigation mode,gesture(2) or 3btn(0)")
 	var installPath string
 	flag.StringVar(&installPath, "path", "", "path to openfde deb file")
@@ -47,6 +48,12 @@ func main() {
 
 	LinuxUID = os.Getuid()
 	LinuxGID = os.Getgid()
+
+	if aospVersion {
+		readAospVersion()
+		fmt.Println(aospVersion)
+		return
+	}
 
 	if install {
 		if len(installPath) > 0 {
