@@ -8,6 +8,7 @@ import (
 )
 
 var aospVersion string
+var LocalOpenfde string
 
 func readAospVersion() {
 	checkOpenfdeCmd := exec.Command("sh", "-c", "grep -A 3 waydroid_data /usr/lib/waydroid/tools/config/__init__.py | grep openfde")
@@ -16,7 +17,7 @@ func readAospVersion() {
 		if len(matched) > 0 {
 			if len(matched) > 1 {
 				aospVersion = matched[1]
-				if len(LocalOpenfde) == 0 {
+				if len(aospVersion) == 0 {
 					aospVersion = "11"
 				}
 			}
